@@ -1,0 +1,139 @@
+#include "TrackballController.h"
+#include <cmath>
+#include <algorithm>
+
+TrackballController::TrackballController()
+{
+}
+
+vec3 TrackballController::projectToSphere(const vec2& point, const vec2& screenSize) const
+{
+    // Normalize screen coordinates to [-1, 1] range
+    float x = (2.0f * point.x / screenSize.x) - 1.0f;
+    float y = 1.0f - (2.0f * point.y / screenSize.y); // Flip Y axis
+
+    float length = x * x + y * y;
+    float z = 0.0f;
+
+    if (length <= m_trackballRadius * m_trackballRadius * 0.5f)
+    {
+        // Inside sphere
+        z = std::sqrt(m_trackballRadius * m_trackballRadius - length);
+    }
+    else
+    {
+        // Outside sphere - use hyperbolic sheet
+        z = (m_trackballRadius * m_trackballRadius * 0.5f) / std::sqrt(length);
+    }
+
+    return vec3(x, y, z).normalized();
+}
+
+void TrackballController::rotate(Camera& camera, const vec2& delta, const vec2& screenSize)
+{
+    if (delta.x == 0.0f && delta.y == 0.0f)
+        return;
+
+    // Get camera properties
+    vec3 position = camera.getPosition();
+    vec3 target = camera.getTarget();
+
+    // Calculate offset from target to camera
+    vec3 offset = position - target;
+    float radius = offset.length();
+
+    // Horizontal rotation angle (around world Y axis)
+    float angleX = -delta.x * m_rotateSpeed * 0.005f;
+
+    // Vertical rotation angle
+    float angleY = -delta.y * m_rotateSpeed * 0.005f;
+
+    // First, apply horizontal rotation around world Y axis
+    quaternion rotY = quaternion::fromAxisAngle(vec3(0, 1, 0), angleX);
+    quaternion offsetQuat = quaternion(0, offset.x, offset.y, offset.z);
+    quaternion rotYConj = quaternion(rotY.w, -rotY.x, -rotY.y, -rotY.z);
+    quaternion rotatedY = rotY * offsetQuat * rotYConj;
+    vec3 offsetAfterY(rotatedY.x, rotatedY.y, rotatedY.z);
+
+    // For vertical rotation, compute right vector in XZ plane
+    // This ensures the up vector stays as world Y
+    vec3 forward = (target - (target + offsetAfterY)).normalized();
+    vec3 worldUp(0, 1, 0);
+    vec3 right = forward.cross(worldUp).normalized();
+
+    // Clamp vertical angle to prevent flipping
+    // Calculate current elevation angle
+    vec3 horizontalDir(offsetAfterY.x, 0, offsetAfterY.z);
+    float horizontalDist = horizontalDir.length();
+    if (horizontalDist < 0.001f) horizontalDist = 0.001f; // Avoid division by zero
+
+    float currentElevation = std::atan2(offsetAfterY.y, horizontalDist);
+    float newElevation = currentElevation + angleY;
+
+    // Clamp to prevent going over the poles (leaving small margin)
+    const float maxElevation = 1.5f; // About 85 degrees
+    newElevation = std::max(-maxElevation, std::min(maxElevation, newElevation));
+    angleY = newElevation - currentElevation;
+
+    // Apply vertical rotation around the right vector
+    quaternion rotX = quaternion::fromAxisAngle(right, angleY);
+    quaternion offsetQuatY = quaternion(0, offsetAfterY.x, offsetAfterY.y, offsetAfterY.z);
+    quaternion rotXConj = quaternion(rotX.w, -rotX.x, -rotX.y, -rotX.z);
+    quaternion rotatedFinal = rotX * offsetQuatY * rotXConj;
+
+    // Set new camera position
+    vec3 newOffset(rotatedFinal.x, rotatedFinal.y, rotatedFinal.z);
+    camera.setPosition(target + newOffset);
+    camera.setTarget(target);
+    camera.setUp(worldUp); // Always set up to world Y
+}
+
+void TrackballController::pan(Camera& camera, const vec2& delta, const vec2& screenSize)
+{
+    if (delta.x == 0.0f && delta.y == 0.0f)
+        return;
+
+    vec3 position = camera.getPosition();
+    vec3 target = camera.getTarget();
+    vec3 offset = position - target;
+    float distance = offset.length();
+
+    // Pan speed scales with distance from target
+    float panScale = distance * m_panSpeed * 0.001f;
+
+    // Use camera's right vector for horizontal panning
+    vec3 right = camera.getRight();
+
+    // Use world Y for vertical panning to keep movement intuitive
+    vec3 worldUp(0, 1, 0);
+
+    vec3 panOffset = right * (-delta.x * panScale) + worldUp * (delta.y * panScale);
+
+    camera.setPosition(position + panOffset);
+    camera.setTarget(target + panOffset);
+    camera.setUp(worldUp); // Always set up to world Y
+}
+
+void TrackballController::zoom(Camera& camera, float delta)
+{
+    if (delta == 0.0f)
+        return;
+
+    vec3 position = camera.getPosition();
+    vec3 target = camera.getTarget();
+
+    vec3 offset = position - target;
+    float distance = offset.length();
+
+    // Zoom by moving along view direction
+    float zoomAmount = delta * m_zoomSpeed * distance * 0.05f;
+    float newDistance = distance - zoomAmount;
+
+    // Clamp distance
+    newDistance = std::max(m_minDistance, std::min(m_maxDistance, newDistance));
+
+    // Set new position
+    vec3 direction = offset.normalized();
+    camera.setPosition(target + direction * newDistance);
+    camera.setTarget(target);
+}
