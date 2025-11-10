@@ -1,8 +1,6 @@
 ﻿#pragma once
-
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
-
 #include <string>
 #include <vector>
 
@@ -18,12 +16,15 @@ public:
     GLFWwindow* window() const { return m_window; }
     int width() const { return m_width; }
     int height() const { return m_height; }
+    float currentFPS() const { return m_currentFPS; }
 
 private:
     GLFWwindow* m_window{nullptr};
     int m_width{0};
     int m_height{0};
     IScreen* m_activeScreen{nullptr};
+
+    float m_currentFPS{0.0f};
 
     static void framebufferSizeCallback(GLFWwindow* window, int width, int height);
     static void mouseButtonCallback(GLFWwindow* window, int button, int action, int mods);

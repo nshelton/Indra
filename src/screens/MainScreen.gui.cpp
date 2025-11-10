@@ -8,6 +8,7 @@ void MainScreen::onGui()
     if (ImGui::Begin("Controls"))
     {
         ImGui::Text("Indra Fluid sim");
+        ImGui::Text("FPS: %.1f", m_currentFPS);
     }
 
     ImGui::Separator();

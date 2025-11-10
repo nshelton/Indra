@@ -25,4 +25,6 @@ private:
     Renderer m_renderer{};
     InteractionController m_interaction{};
     SceneModel m_scene{};
+
+    float m_currentFPS{0.0f};
 };

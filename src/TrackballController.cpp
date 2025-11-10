@@ -65,7 +65,7 @@ void TrackballController::rotate(Camera& camera, const vec2& delta, const vec2& 
     // Calculate current elevation angle
     vec3 horizontalDir(offsetAfterY.x, 0, offsetAfterY.z);
     float horizontalDist = horizontalDir.length();
-    if (horizontalDist < 0.001f) horizontalDist = 0.001f; // Avoid division by zero
+    if (horizontalDist < 0.01f) horizontalDist = 0.01f; // Avoid division by zero
 
     float currentElevation = std::atan2(offsetAfterY.y, horizontalDist);
     float newElevation = currentElevation + angleY;

@@ -11,22 +11,7 @@ void MainScreen::onAttach(App &app)
     google::SetStderrLogging(google::GLOG_INFO);
 
     m_app = &app;
-    std::string err;
-
-    // make some random boxes to start
-    m_scene.clear();
-    for (int i = 0; i < 10; ++i)
-    {
-        boxMesh box(vec3(5, 5, 5));
-        box.transform = transform(
-            vec3(static_cast<float>(rand() % 200 - 100),
-                 static_cast<float>(rand() % 200 - 100),
-                 static_cast<float>(rand() % 200 - 100)),
-            quaternion::fromAxisAngle(vec3(0, 1, 0), static_cast<float>(rand() % 6280 / 1000.0f)),
-            vec3(1,1,1)
-        );
-        m_scene.addMesh(box);
-    }
+    m_scene.initScene();
 }
 
 void MainScreen::onResize(int width, int height)
@@ -36,8 +21,9 @@ void MainScreen::onResize(int width, int height)
     m_interaction.setScreenSize(vec2(static_cast<float>(width), static_cast<float>(height)));
 }
 
-void MainScreen::onUpdate(double /*dt*/)
-{
+void MainScreen::onUpdate(double dt)
+{   
+    m_currentFPS = m_currentFPS * 0.9f + 0.1f * static_cast<float>(1.0 / dt);
     // Handle keyboard-driven actions that should work outside of ImGui widgets
     ImGuiIO &io = ImGui::GetIO();
     if (!io.WantCaptureKeyboard && ImGui::IsKeyPressed(ImGuiKey_Delete))

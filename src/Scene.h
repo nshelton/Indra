@@ -1,12 +1,12 @@
 #pragma once
-# include <vector>
+#include <vector>
 #include "core/core.h"
 #include "Scene.h"
-
 
 class SceneModel
 {
 public:
+    void initScene();
     void clear()
     {
         // Clear the scene data
@@ -17,7 +17,7 @@ public:
         m_meshes.push_back(m);
     }
 
-    std::vector<mesh>& meshes() { return m_meshes; }
+    std::vector<mesh> &meshes() { return m_meshes; }
 
 private:
     std::vector<mesh> m_meshes;
