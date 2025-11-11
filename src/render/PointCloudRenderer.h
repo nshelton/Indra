@@ -5,6 +5,9 @@
 #include "core/core.h"
 #include "Camera.h"
 
+// Forward declare CUDA types to avoid requiring CUDA headers in this header
+struct cudaGraphicsResource;
+
 class PointCloudRenderer
 {
 public:
@@ -30,7 +33,13 @@ public:
 
     int totalVertices() const { return static_cast<int>(m_points.size()); }
 
+    void uploadToGPU();  // Upload CPU data to VBO
     void draw(const Camera& camera);
+
+    // CUDA Interop methods
+    bool initCudaInterop();
+    void shutdownCudaInterop();
+    bool runCudaKernel(float deltaTime);  // Example: animate points with CUDA
 
 private:
     struct GLVertex { float x, y, z, r, g, b, a; };
@@ -44,6 +53,11 @@ private:
     float m_pointRadius{1.0f};
 
     std::vector<GLVertex> m_points;   // point vertices (single positions)
+
+    // CUDA Interop resources
+    cudaGraphicsResource* m_cudaVboResource{nullptr};
+    bool m_cudaInteropInitialized{false};
+    bool m_cudaInteropAttempted{false};  // Track if we've tried to init CUDA
 
     static GLuint compileShader(GLenum type, const char* src);
     static GLuint linkProgram(GLuint vs, GLuint fs);

@@ -1,8 +1,36 @@
 ﻿cmake_minimum_required(VERSION 3.21)
-project(Indra LANGUAGES CXX)
+
+set(CMAKE_CUDA_COMPILER "$ENV{CUDA_PATH}/bin/nvcc.exe" CACHE FILEPATH "CUDA compiler")
+message(STATUS "Using CUDA from CUDA_PATH: $ENV{CUDA_PATH}")
+
+# Find Visual Studio tools (cl.exe compiler and link.exe linker)
+# file(GLOB VS_CL_PATHS "C:/Program Files/Microsoft Visual Studio/2022/*/VC/Tools/MSVC/*/bin/Hostx64/x64/cl.exe")
+# file(GLOB VS_LINK_PATHS "C:/Program Files/Microsoft Visual Studio/2022/*/VC/Tools/MSVC/*/bin/Hostx64/x64/link.exe")
+
+# if(VS_CL_PATHS)
+#     list(GET VS_CL_PATHS 0 VS_CL_PATH)
+#     set(CMAKE_CUDA_HOST_COMPILER "${VS_CL_PATH}" CACHE FILEPATH "CUDA host compiler")
+#     message(STATUS "Setting CUDA host compiler: ${CMAKE_CUDA_HOST_COMPILER}")
+# endif()
+
+# if(VS_LINK_PATHS)
+#     list(GET VS_LINK_PATHS 0 VS_LINK_PATH)
+#     set(CMAKE_LINKER "${VS_LINK_PATH}" CACHE FILEPATH "MSVC linker")
+#     message(STATUS "Setting linker: ${CMAKE_LINKER}")
+# endif()
+
+message(STATUS "Setting CUDA compiler from CUDA_PATH: ${CMAKE_CUDA_COMPILER}")
+
+project(Indra LANGUAGES CXX CUDA)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# CUDA settings
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
+set(CMAKE_CUDA_ARCHITECTURES "75;86;89" CACHE STRING "CUDA architectures")
 
 find_package(glfw3 CONFIG REQUIRED)
 find_package(glad CONFIG REQUIRED)
@@ -11,15 +39,45 @@ find_package(fmt CONFIG REQUIRED)
 find_package(glog CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 
+# Find CUDA Toolkit
+find_package(CUDAToolkit REQUIRED)
+
+# Verify CUDA was found and print information
+if(CUDAToolkit_FOUND)
+    message(STATUS "CUDA Toolkit found!")
+    message(STATUS "  Version: ${CUDAToolkit_VERSION}")
+    message(STATUS "  Include dirs: ${CUDAToolkit_INCLUDE_DIRS}")
+    message(STATUS "  Library dirs: ${CUDAToolkit_LIBRARY_DIR}")
+else()
+    message(FATAL_ERROR "CUDA Toolkit not found! Please set CUDA_TOOLKIT_ROOT_DIR or CUDA_PATH environment variable.")
+endif()
+
 file(GLOB_RECURSE SRC_FILES CONFIGURE_DEPENDS
   src/*.cpp
+  src/*.cu
 )
 
 add_executable(indra ${SRC_FILES})
 
-target_include_directories(indra PRIVATE src)
+# Prevent Windows.h from defining min/max macros that conflict with std::min/std::max
+target_compile_definitions(indra PRIVATE NOMINMAX)
 
-target_link_libraries(indra PRIVATE glfw imgui::imgui opengl32 glog::glog fmt::fmt glad::glad)
+target_include_directories(indra PRIVATE
+  src
+  ${CUDAToolkit_INCLUDE_DIRS}
+)
+
+target_link_libraries(indra PRIVATE
+  glfw
+  imgui::imgui
+  opengl32
+  glog::glog
+  fmt::fmt
+  glad::glad
+  CUDA::cudart
+  CUDA::cuda_driver
+  CUDA::cufft
+)
 
 enable_testing()
 

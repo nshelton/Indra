@@ -7,6 +7,19 @@ Renderer::Renderer()
 {
    m_lines.init();
    m_meshes.init();
+   m_points.init();
+   // CUDA interop will be initialized lazily on first runCudaKernel() call
+}
+
+void Renderer::setPoints(const std::vector<vec3> &points, color col)
+{
+   m_points.clear();
+   for (const auto &p : points)
+   {
+      m_points.addPoint(p, col);
+   }
+   // Upload initial data to GPU
+   m_points.uploadToGPU();
 }
 
 void Renderer::render(const Camera &camera, const SceneModel &scene, const InteractionState &uiState)
@@ -22,6 +35,12 @@ void Renderer::render(const Camera &camera, const SceneModel &scene, const Inter
    {
       m_meshes.renderMesh(m, camera);
    }
+
+   // Run CUDA kernel to animate/process points on GPU (before drawing)
+   m_time += 0.016f;  // Increment animation time (~60 FPS)
+   m_points.runCudaKernel(m_time);
+
+   m_points.draw(camera);
 
    // Draw ground plane grid
    vec3 gridCenter(0, 0, 0);
@@ -45,4 +64,5 @@ void Renderer::shutdown()
 {
    m_lines.shutdown();
    m_meshes.shutdown();
+   m_points.shutdown();
 }

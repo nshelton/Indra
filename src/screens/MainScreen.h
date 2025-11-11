@@ -4,6 +4,8 @@
 #include <imgui.h>
 #include "Camera.h"
 #include "Renderer.h"
+#include "audio/AudioCapture.h"
+#include "audio/AudioAnalyzer.h"
 #include <memory>
 
 class MainScreen : public IScreen
@@ -27,4 +29,12 @@ private:
     SceneModel m_scene{};
 
     float m_currentFPS{0.0f};
+
+    // Audio analysis
+    AudioCapture m_audioCapture{};
+    AudioAnalyzer m_audioAnalyzer{};
+    std::vector<float> m_audioBuffer{};
+    std::vector<float> m_fftMagnitudes{};
+    std::vector<float> m_frequencyBins{};
+    bool m_audioEnabled{false};
 };

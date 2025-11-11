@@ -14,4 +14,14 @@ void SceneModel::initScene()
             vec3(1, 1, 1));
         addMesh(box);
     }
+
+    m_points = std::vector<vec3>();
+
+    for (int i = 0; i < m_numPoints; ++i)
+    {
+        m_points.push_back(vec3(
+            static_cast<float>(rand() % 200 - 100),
+            static_cast<float>(rand() % 200 - 100),
+            static_cast<float>(rand() % 200 - 100)));
+    }
 }

@@ -1,6 +1,9 @@
 ﻿#include "PointCloudRenderer.h"
 
 #include <iostream>
+#include <cuda_runtime.h>
+#include <cuda_gl_interop.h>
+#include "PointCloudKernel.cuh"
 
 GLuint PointCloudRenderer::compileShader(GLenum type, const char *src)
 {
@@ -108,6 +111,9 @@ void main(){
 
 void PointCloudRenderer::shutdown()
 {
+    // Cleanup CUDA resources before deleting OpenGL resources
+    shutdownCudaInterop();
+
     if (m_vao)
         glDeleteVertexArrays(1, &m_vao);
     if (m_vbo)
@@ -123,12 +129,23 @@ void PointCloudRenderer::shutdown()
 void PointCloudRenderer::clear()
 {
     m_points.clear();
-    m_points.clear();
 }
 
 void PointCloudRenderer::addPoint(vec3 p, color c)
 {
     m_points.push_back(GLVertex{p.x, p.y, p.z, c.r, c.g, c.b, c.a});
+}
+
+void PointCloudRenderer::uploadToGPU()
+{
+    if (m_points.empty())
+        return;
+
+    glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+    glBufferData(GL_ARRAY_BUFFER,
+                 static_cast<GLsizeiptr>(m_points.size() * sizeof(GLVertex)),
+                 m_points.data(), GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 /// @brief Draw the 3D lines using the camera's view-projection matrix
@@ -154,16 +171,152 @@ void PointCloudRenderer::draw(const Camera &camera)
     glUniform1f(m_uPointSizePx, pointDiameterPx);
 
     glBindVertexArray(m_vao);
-    glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-    glBufferData(GL_ARRAY_BUFFER,
-                 static_cast<GLsizeiptr>(m_points.size() * sizeof(GLVertex)),
-                 m_points.data(), GL_DYNAMIC_DRAW);
-
     glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(m_points.size()));
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+}
 
-    // clear points for next frame
-    m_points.clear();
+bool PointCloudRenderer::initCudaInterop()
+{
+    if (m_cudaInteropInitialized)
+    {
+        std::cerr << "CUDA interop already initialized" << std::endl;
+        return true;
+    }
+
+    if (!m_vbo)
+    {
+        std::cerr << "Cannot initialize CUDA interop: VBO not created yet" << std::endl;
+        return false;
+    }
+
+    // Initialize CUDA for OpenGL interop
+    std::cout << "Initializing CUDA interop..." << std::endl;
+
+    // Check CUDA runtime version
+    int runtimeVersion = 0;
+    cudaRuntimeGetVersion(&runtimeVersion);
+    std::cout << "CUDA Runtime Version: " << runtimeVersion << std::endl;
+
+    int driverVersion = 0;
+    cudaDriverGetVersion(&driverVersion);
+    std::cout << "CUDA Driver Version: " << driverVersion << std::endl;
+
+    // First, find a CUDA device that supports OpenGL interop
+    int deviceCount = 0;
+    cudaError_t err = cudaGetDeviceCount(&deviceCount);
+    std::cout << "cudaGetDeviceCount returned: " << cudaGetErrorString(err) << " (code=" << err << "), deviceCount=" << deviceCount << std::endl;
+
+    if (err != cudaSuccess)
+    {
+        std::cerr << "CUDA error: " << cudaGetErrorString(err) << " (error code: " << err << ")" << std::endl;
+        std::cerr << "This usually means:" << std::endl;
+        std::cerr << "  1. CUDA runtime DLLs are not found" << std::endl;
+        std::cerr << "  2. CUDA driver is too old for this CUDA version" << std::endl;
+        std::cerr << "  3. No CUDA-capable GPU is available" << std::endl;
+        return false;
+    }
+
+    if (deviceCount == 0)
+    {
+        std::cerr << "No CUDA devices found (device count = 0)" << std::endl;
+        return false;
+    }
+
+    std::cout << "Found " << deviceCount << " CUDA device(s)" << std::endl;
+
+    // Get device properties
+    cudaDeviceProp prop;
+    err = cudaGetDeviceProperties(&prop, 0);
+    if (err == cudaSuccess)
+    {
+        std::cout << "Device 0: " << prop.name << std::endl;
+        std::cout << "  Compute Capability: " << prop.major << "." << prop.minor << std::endl;
+        std::cout << "  Total Global Memory: " << (prop.totalGlobalMem / (1024*1024)) << " MB" << std::endl;
+    }
+
+    // Register OpenGL VBO with CUDA
+    err = cudaGraphicsGLRegisterBuffer(&m_cudaVboResource, m_vbo, cudaGraphicsMapFlagsWriteDiscard);
+    if (err != cudaSuccess)
+    {
+        std::cerr << "CUDA graphics registration failed: " << cudaGetErrorString(err) << std::endl;
+        return false;
+    }
+
+    m_cudaInteropInitialized = true;
+    std::cout << "CUDA interop initialized successfully" << std::endl;
+    return true;
+}
+
+void PointCloudRenderer::shutdownCudaInterop()
+{
+    if (!m_cudaInteropInitialized)
+        return;
+
+    if (m_cudaVboResource)
+    {
+        cudaGraphicsUnregisterResource(m_cudaVboResource);
+        m_cudaVboResource = nullptr;
+    }
+
+    m_cudaInteropInitialized = false;
+}
+
+bool PointCloudRenderer::runCudaKernel(float deltaTime)
+{
+    // Lazy initialization - initialize CUDA on first kernel call when OpenGL context is current
+    if (!m_cudaInteropAttempted)
+    {
+        m_cudaInteropAttempted = true;
+        if (!initCudaInterop())
+        {
+            std::cerr << "CUDA interop initialization failed - GPU processing disabled" << std::endl;
+            return false;
+        }
+    }
+
+    if (!m_cudaInteropInitialized || !m_cudaVboResource)
+    {
+        return false;  // Silently skip if CUDA not available
+    }
+
+    if (m_points.empty())
+        return true;
+
+    // Map the OpenGL buffer to CUDA
+    cudaError_t err = cudaGraphicsMapResources(1, &m_cudaVboResource, 0);
+    if (err != cudaSuccess)
+    {
+        std::cerr << "CUDA graphics map failed: " << cudaGetErrorString(err) << std::endl;
+        return false;
+    }
+
+    // Get a device pointer to the mapped buffer
+    float* d_vertices = nullptr;
+    size_t numBytes = 0;
+    err = cudaGraphicsResourceGetMappedPointer((void**)&d_vertices, &numBytes, m_cudaVboResource);
+    if (err != cudaSuccess)
+    {
+        std::cerr << "CUDA get mapped pointer failed: " << cudaGetErrorString(err) << std::endl;
+        cudaGraphicsUnmapResources(1, &m_cudaVboResource, 0);
+        return false;
+    }
+
+    // Launch the CUDA kernel to process the vertices
+    err = launchAnimatePointsKernel(d_vertices, static_cast<int>(m_points.size()), deltaTime);
+    if (err != cudaSuccess)
+    {
+        std::cerr << "CUDA kernel launch failed: " << cudaGetErrorString(err) << std::endl;
+        cudaGraphicsUnmapResources(1, &m_cudaVboResource, 0);
+        return false;
+    }
+
+    // Unmap the buffer so OpenGL can use it
+    err = cudaGraphicsUnmapResources(1, &m_cudaVboResource, 0);
+    if (err != cudaSuccess)
+    {
+        std::cerr << "CUDA graphics unmap failed: " << cudaGetErrorString(err) << std::endl;
+        return false;
+    }
+
+    return true;
 }
