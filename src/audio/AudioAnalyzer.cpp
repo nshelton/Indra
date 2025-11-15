@@ -3,12 +3,17 @@
 #include <cmath>
 #include <algorithm>
 
+// Forward declare CUDA kernel launcher (defined in AudioAnalyzer.cu)
+extern void launchComputeMagnitudes(const cufftComplex* d_complexData, float* d_magnitudes, unsigned int numBins);
+
 AudioAnalyzer::AudioAnalyzer()
     : m_fftSize(2048)
     , m_plan(0)
     , d_input(nullptr)
     , d_output(nullptr)
+    , d_magnitudes(nullptr)
     , m_initialized(false)
+    , m_windowType(WindowType::None)
 {
 }
 
@@ -18,6 +23,7 @@ AudioAnalyzer::~AudioAnalyzer()
         cufftDestroy(m_plan);
         if (d_input) cudaFree(d_input);
         if (d_output) cudaFree(d_output);
+        if (d_magnitudes) cudaFree(d_magnitudes);
     }
 }
 
@@ -30,7 +36,6 @@ bool AudioAnalyzer::initialize(unsigned int fftSize)
     }
 
     m_fftSize = fftSize;
-
 
     // Allocate device memory
     cudaError_t cudaStatus = cudaMalloc(&d_input, m_fftSize * sizeof(float));
@@ -47,18 +52,95 @@ bool AudioAnalyzer::initialize(unsigned int fftSize)
         return false;
     }
 
+    // Allocate device memory for magnitudes
+    cudaStatus = cudaMalloc(&d_magnitudes, (m_fftSize / 2 + 1) * sizeof(float));
+    if (cudaStatus != cudaSuccess) {
+        LOG(ERROR) << "Failed to allocate device magnitudes buffer: " << cudaGetErrorString(cudaStatus);
+        cudaFree(d_input);
+        cudaFree(d_output);
+        return false;
+    }
+
     // Create cuFFT plan for real-to-complex 1D FFT
     cufftResult result = cufftPlan1d(&m_plan, m_fftSize, CUFFT_R2C, 1);
     if (result != CUFFT_SUCCESS) {
         LOG(ERROR) << "Failed to create cuFFT plan: " << result;
         cudaFree(d_input);
         cudaFree(d_output);
+        cudaFree(d_magnitudes);
         return false;
     }
 
     m_initialized = true;
+
+    // Generate window coefficients
+    generateWindow();
+
     LOG(INFO) << "AudioAnalyzer initialized with FFT size: " << m_fftSize;
     return true;
+}
+
+bool AudioAnalyzer::reinitialize(unsigned int newFftSize)
+{
+    // Clean up existing resources
+    if (m_initialized) {
+        cufftDestroy(m_plan);
+        if (d_input) cudaFree(d_input);
+        if (d_output) cudaFree(d_output);
+        if (d_magnitudes) cudaFree(d_magnitudes);
+        d_input = nullptr;
+        d_output = nullptr;
+        d_magnitudes = nullptr;
+        m_initialized = false;
+    }
+
+    // Initialize with new FFT size
+    return initialize(newFftSize);
+}
+
+void AudioAnalyzer::generateWindow()
+{
+    m_window.resize(m_fftSize);
+    const double pi = 3.14159265358979323846;
+
+    switch (m_windowType) {
+        case WindowType::None:
+            // Rectangular window (all ones)
+            std::fill(m_window.begin(), m_window.end(), 1.0f);
+            break;
+
+        case WindowType::Hann:
+            // Hann window: 0.5 * (1 - cos(2*pi*n/(N-1)))
+            for (unsigned int i = 0; i < m_fftSize; ++i) {
+                m_window[i] = 0.5f * (1.0f - std::cos(2.0 * pi * i / (m_fftSize - 1)));
+            }
+            break;
+
+        case WindowType::BlackmanHarris:
+            // 4-term Blackman-Harris window for excellent sidelobe suppression (-92 dB)
+            // Reduces spectral leakage artifacts significantly
+            for (unsigned int i = 0; i < m_fftSize; ++i) {
+                const double a0 = 0.35875;
+                const double a1 = 0.48829;
+                const double a2 = 0.14128;
+                const double a3 = 0.01168;
+                const double phase = 2.0 * pi * i / (m_fftSize - 1);
+
+                m_window[i] = a0
+                            - a1 * std::cos(phase)
+                            + a2 * std::cos(2.0 * phase)
+                            - a3 * std::cos(3.0 * phase);
+            }
+            break;
+    }
+}
+
+void AudioAnalyzer::setWindowType(WindowType type)
+{
+    m_windowType = type;
+    if (m_initialized) {
+        generateWindow();
+    }
 }
 
 bool AudioAnalyzer::analyze(const std::vector<float>& audioData, std::vector<float>& magnitudes)
@@ -73,8 +155,14 @@ bool AudioAnalyzer::analyze(const std::vector<float>& audioData, std::vector<flo
         return false;
     }
 
-    // Copy audio data to device
-    cudaError_t cudaStatus = cudaMemcpy(d_input, audioData.data(),
+    // Apply window function to audio data
+    std::vector<float> windowedData(m_fftSize);
+    for (unsigned int i = 0; i < m_fftSize; ++i) {
+        windowedData[i] = audioData[i] * m_window[i];
+    }
+
+    // Copy windowed audio data to device
+    cudaError_t cudaStatus = cudaMemcpy(d_input, windowedData.data(),
                                          m_fftSize * sizeof(float),
                                          cudaMemcpyHostToDevice);
     if (cudaStatus != cudaSuccess) {
@@ -89,31 +177,26 @@ bool AudioAnalyzer::analyze(const std::vector<float>& audioData, std::vector<flo
         return false;
     }
 
-    // Wait for FFT to complete
+    // Compute magnitudes on GPU
+    const unsigned int numBins = m_fftSize / 2 + 1;
+    launchComputeMagnitudes(d_output, d_magnitudes, numBins);
+
+    // Wait for magnitude computation to complete
     cudaStatus = cudaDeviceSynchronize();
     if (cudaStatus != cudaSuccess) {
         LOG(ERROR) << "CUDA synchronization failed: " << cudaGetErrorString(cudaStatus);
         return false;
     }
 
-    // Copy results back to host and compute magnitudes
-    const unsigned int numBins = m_fftSize / 2 + 1;
-    std::vector<cufftComplex> complexOutput(numBins);
-
-    cudaStatus = cudaMemcpy(complexOutput.data(), d_output,
-                            numBins * sizeof(cufftComplex),
+    // Copy magnitudes to host for GUI display (if needed)
+    // The magnitudes remain on GPU (d_magnitudes) for direct use by other kernels
+    magnitudes.resize(numBins);
+    cudaStatus = cudaMemcpy(magnitudes.data(), d_magnitudes,
+                            numBins * sizeof(float),
                             cudaMemcpyDeviceToHost);
     if (cudaStatus != cudaSuccess) {
-        LOG(ERROR) << "Failed to copy FFT results to host: " << cudaGetErrorString(cudaStatus);
+        LOG(ERROR) << "Failed to copy magnitudes to host: " << cudaGetErrorString(cudaStatus);
         return false;
-    }
-
-    // Compute magnitudes on CPU
-    magnitudes.resize(numBins);
-    for (unsigned int i = 0; i < numBins; ++i) {
-        float real = complexOutput[i].x;
-        float imag = complexOutput[i].y;
-        magnitudes[i] = std::sqrt(real * real + imag * imag);
     }
 
     return true;

@@ -12,23 +12,20 @@ void MainScreen::onGui()
         ImGui::Text("FPS: %.1f", m_currentFPS);
     }
 
-    ImGui::Separator();
-    ImGui::BeginGroup();
-    ImGui::Text("Camera Position: (%.2f, %.2f, %.2f)", m_camera.getPosition().x, m_camera.getPosition().y, m_camera.getPosition().z);
-    ImGui::Text("Camera Target: (%.2f, %.2f, %.2f)", m_camera.getTarget().x, m_camera.getTarget().y, m_camera.getTarget().z);
-    ImGui::EndGroup();
-    ImGui::Text("Projection Matrix:");
-    matrix4 proj = m_camera.getProjectionMatrix();
-    for (int i = 0; i < 4; ++i)
-    {
-        ImGui::Text("| %.3f %.3f %.3f %.3f |", proj.m[i][0], proj.m[i][1], proj.m[i][2], proj.m[i][3]);
-    }
+    // Camera info
+    m_camera.drawGui();
 
-    ImGui::Text("Camera Up: (%.2f, %.2f, %.2f)", m_camera.getUp().x, m_camera.getUp().y, m_camera.getUp().z);
-    ImGui::Text("Camera Right: (%.2f, %.2f, %.2f)", m_camera.getRight().x, m_camera.getRight().y, m_camera.getRight().z);
-    ImGui::Text("Camera Forward: (%.2f, %.2f, %.2f)", m_camera.getForward().x, m_camera.getForward().y, m_camera.getForward().z);
+    // Renderer controls
+    m_renderer.drawGui();
 
-    // Audio Analysis Section
+    // Audio controls
+    drawAudioGui();
+
+    ImGui::End();
+}
+
+void MainScreen::drawAudioGui()
+{
     ImGui::Separator();
     ImGui::Text("Audio Analysis");
 
@@ -37,6 +34,23 @@ void MainScreen::onGui()
             m_audioCapture.start();
         } else {
             m_audioCapture.stop();
+        }
+    }
+
+    // Window function selection
+    const char* windowTypes[] = { "None (Rectangular)", "Hann", "Blackman-Harris" };
+    if (ImGui::Combo("Window Function", &m_windowTypeIndex, windowTypes, 3)) {
+        m_audioAnalyzer.setWindowType(static_cast<AudioAnalyzer::WindowType>(m_windowTypeIndex));
+    }
+
+    // FFT size selection
+    const char* fftSizes[] = { "512", "1024", "2048", "4096", "8192" };
+    const unsigned int fftSizeValues[] = { 512, 1024, 2048, 4096, 8192 };
+    if (ImGui::Combo("FFT Size", &m_fftSizeIndex, fftSizes, 5)) {
+        unsigned int newSize = fftSizeValues[m_fftSizeIndex];
+        if (m_audioAnalyzer.reinitialize(newSize)) {
+            // Update frequency bins for the new FFT size
+            m_audioAnalyzer.getFrequencyBins(m_frequencyBins, 44100);
         }
     }
 
@@ -59,6 +73,4 @@ void MainScreen::onGui()
             ImGui::TreePop();
         }
     }
-
-    ImGui::End();
 }

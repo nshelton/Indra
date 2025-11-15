@@ -22,6 +22,17 @@ void MainScreen::onAttach(App &app)
             m_audioAnalyzer.getFrequencyBins(m_frequencyBins, 44100);
         }
     }
+
+    // Set up automatic shader hot-reload
+    m_shaderWatcher.watch("../../shaders/pointcloud.vert.glsl", [this](const std::string& path) {
+        LOG(INFO) << "Detected change in " << path << ", reloading shaders...";
+        m_renderer.reloadShaders();
+    });
+    m_shaderWatcher.watch("../../shaders/pointcloud.frag.glsl", [this](const std::string& path) {
+        LOG(INFO) << "Detected change in " << path << ", reloading shaders...";
+        m_renderer.reloadShaders();
+    });
+    LOG(INFO) << "Shader auto-reload enabled - edit shaders and they'll reload automatically!";
 }
 
 void MainScreen::onResize(int width, int height)
@@ -35,6 +46,9 @@ void MainScreen::onUpdate(double dt)
 {
     m_currentFPS = m_currentFPS * 0.9f + 0.1f * static_cast<float>(1.0 / dt);
 
+    // Check for shader file changes and auto-reload
+    m_shaderWatcher.update();
+
     // Handle keyboard-driven actions that should work outside of ImGui widgets
     ImGuiIO &io = ImGui::GetIO();
     if (!io.WantCaptureKeyboard && ImGui::IsKeyPressed(ImGuiKey_Delete))
@@ -42,15 +56,26 @@ void MainScreen::onUpdate(double dt)
        // handle keypresses
     }
 
+    // Reload shaders with R key (manual override)
+    if (!io.WantCaptureKeyboard && ImGui::IsKeyPressed(ImGuiKey_R))
+    {
+        m_renderer.reloadShaders();
+    }
+
     // Process audio if enabled
     if (m_audioEnabled && m_audioCapture.isCapturing()) {
         if (m_audioCapture.getLatestAudioData(m_audioBuffer)) {
             // Perform FFT analysis on the audio data
+            // This computes FFT on GPU and downloads magnitudes to CPU for GUI display
             m_audioAnalyzer.analyzeStereo(m_audioBuffer, m_fftMagnitudes);
 
-            // You can now use m_fftMagnitudes for visualization or further processing
-            // Example: Find dominant frequency
+            // Use GPU buffer directly for audio-reactive visuals (avoids CPU round-trip!)
+            // The magnitudes are already on GPU from the analyze call
             if (!m_fftMagnitudes.empty()) {
+                m_renderer.setFFTDataGPU(m_audioAnalyzer.getDeviceMagnitudes(),
+                                         m_audioAnalyzer.getNumBins());
+
+                // Example: Find dominant frequency (uses CPU copy for GUI)
                 auto maxIt = std::max_element(m_fftMagnitudes.begin(), m_fftMagnitudes.end());
                 size_t maxIdx = std::distance(m_fftMagnitudes.begin(), maxIt);
                 float dominantFreq = m_frequencyBins[maxIdx];

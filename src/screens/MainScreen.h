@@ -6,6 +6,7 @@
 #include "Renderer.h"
 #include "audio/AudioCapture.h"
 #include "audio/AudioAnalyzer.h"
+#include "util/FileWatcher.h"
 #include <memory>
 
 class MainScreen : public IScreen
@@ -22,6 +23,8 @@ public:
     void onGui() override;
 
 private:
+    void drawAudioGui();
+
     App *m_app{nullptr};
     Camera m_camera{};
     Renderer m_renderer{};
@@ -37,4 +40,9 @@ private:
     std::vector<float> m_fftMagnitudes{};
     std::vector<float> m_frequencyBins{};
     bool m_audioEnabled{false};
+    int m_windowTypeIndex{2}; // Default to BlackmanHarris
+    int m_fftSizeIndex{2}; // Default to 2048 (index 2 in [512, 1024, 2048, 4096, 8192])
+
+    // Shader hot-reload
+    FileWatcher m_shaderWatcher{};
 };

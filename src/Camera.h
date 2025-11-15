@@ -33,6 +33,9 @@ public:
     vec3 getRight() const { return m_right; }
     vec3 getUp() const { return m_up; }
 
+    // Draw camera info GUI
+    void drawGui() const;
+
 private:
     void updateViewMatrix();
 

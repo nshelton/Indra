@@ -7,11 +7,9 @@ AudioCapture::AudioCapture()
     : m_sampleRate(44100)
     , m_channels(2)
     , m_isCapturing(false)
-    , m_bufferSize(44100 * 2) // 1 second of stereo audio at 44.1kHz
-    , m_writePos(0)
-    , m_hasNewData(false)
 {
-    m_audioBuffer.resize(m_bufferSize, 0.0f);
+    // Pre-allocate buffer for 2048 samples * 2 channels
+    m_audioBuffer.resize(2048 * 2, 0.0f);
 }
 
 AudioCapture::~AudioCapture()
@@ -24,8 +22,9 @@ bool AudioCapture::initialize(unsigned int sampleRate, unsigned int channels)
 {
     m_sampleRate = sampleRate;
     m_channels = channels;
-    m_bufferSize = sampleRate * channels; // 1 second buffer
-    m_audioBuffer.resize(m_bufferSize, 0.0f);
+
+    // Resize buffer to match 2048 samples * channels for FFT
+    m_audioBuffer.resize(2048 * channels, 0.0f);
 
     // Configure device for loopback capture
     m_deviceConfig = ma_device_config_init(ma_device_type_loopback);
@@ -77,13 +76,10 @@ void AudioCapture::stop()
 
 bool AudioCapture::getLatestAudioData(std::vector<float>& outBuffer)
 {
-    if (!m_hasNewData) {
-        return false;
-    }
-
+    // Always return current buffer for real-time visualization
+    // Don't wait for m_hasNewData flag
     std::lock_guard<std::mutex> lock(m_bufferMutex);
     outBuffer = m_audioBuffer;
-    m_hasNewData = false;
     return true;
 }
 
@@ -107,22 +103,17 @@ void AudioCapture::onAudioData(const float* pInput, ma_uint32 frameCount)
 {
     if (!pInput) return;
 
-    const size_t sampleCount = frameCount * m_channels;
-
     // Call user callback if set
     if (m_audioCallback) {
         m_audioCallback(pInput, frameCount);
     }
 
-    // Store in ring buffer
+    // Copy latest audio chunk directly to buffer
+    const size_t sampleCount = frameCount * m_channels;
+    const size_t copyCount = std::min(sampleCount, m_audioBuffer.size());
+
     {
         std::lock_guard<std::mutex> lock(m_bufferMutex);
-
-        for (size_t i = 0; i < sampleCount; ++i) {
-            m_audioBuffer[m_writePos] = pInput[i];
-            m_writePos = (m_writePos + 1) % m_bufferSize;
-        }
-
-        m_hasNewData = true;
+        std::copy(pInput, pInput + copyCount, m_audioBuffer.begin());
     }
 }

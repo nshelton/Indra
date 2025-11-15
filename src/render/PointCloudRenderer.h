@@ -2,8 +2,10 @@
 
 #include <glad/glad.h>
 #include <vector>
+#include <memory>
 #include "core/core.h"
 #include "Camera.h"
+#include "ShaderProgram.h"
 
 // Forward declare CUDA types to avoid requiring CUDA headers in this header
 struct cudaGraphicsResource;
@@ -41,14 +43,21 @@ public:
     void shutdownCudaInterop();
     bool runCudaKernel(float deltaTime);  // Example: animate points with CUDA
 
+    // Audio reactivity
+    void uploadFFTData(const std::vector<float>& fftMagnitudes);
+    // Use FFT data directly from GPU (avoids CPU round-trip)
+    void setFFTDataGPU(const float* d_fftData, int numBins);
+
+    // Hot-reload shaders
+    bool reloadShaders();
+
 private:
     struct GLVertex { float x, y, z, r, g, b, a; };
 
-    GLuint m_program{0};
+    // Shader management
+    std::unique_ptr<ShaderProgram> m_shaderProgram;
     GLuint m_vao{0};
     GLuint m_vbo{0};
-    GLuint m_uViewProjMat{0};
-    GLuint m_uPointSizePx{0};
 
     float m_pointRadius{1.0f};
 
@@ -59,7 +68,9 @@ private:
     bool m_cudaInteropInitialized{false};
     bool m_cudaInteropAttempted{false};  // Track if we've tried to init CUDA
 
-    static GLuint compileShader(GLenum type, const char* src);
-    static GLuint linkProgram(GLuint vs, GLuint fs);
+    // FFT data for audio reactivity
+    float* m_d_fftData{nullptr};  // Device pointer for FFT data
+    int m_numFFTBins{0};
+    bool m_ownsFFTData{false};  // Track if we allocated the FFT buffer (and should free it)
 };
 

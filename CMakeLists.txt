@@ -2,23 +2,6 @@
 
 set(CMAKE_CUDA_COMPILER "$ENV{CUDA_PATH}/bin/nvcc.exe" CACHE FILEPATH "CUDA compiler")
 message(STATUS "Using CUDA from CUDA_PATH: $ENV{CUDA_PATH}")
-
-# Find Visual Studio tools (cl.exe compiler and link.exe linker)
-# file(GLOB VS_CL_PATHS "C:/Program Files/Microsoft Visual Studio/2022/*/VC/Tools/MSVC/*/bin/Hostx64/x64/cl.exe")
-# file(GLOB VS_LINK_PATHS "C:/Program Files/Microsoft Visual Studio/2022/*/VC/Tools/MSVC/*/bin/Hostx64/x64/link.exe")
-
-# if(VS_CL_PATHS)
-#     list(GET VS_CL_PATHS 0 VS_CL_PATH)
-#     set(CMAKE_CUDA_HOST_COMPILER "${VS_CL_PATH}" CACHE FILEPATH "CUDA host compiler")
-#     message(STATUS "Setting CUDA host compiler: ${CMAKE_CUDA_HOST_COMPILER}")
-# endif()
-
-# if(VS_LINK_PATHS)
-#     list(GET VS_LINK_PATHS 0 VS_LINK_PATH)
-#     set(CMAKE_LINKER "${VS_LINK_PATH}" CACHE FILEPATH "MSVC linker")
-#     message(STATUS "Setting linker: ${CMAKE_LINKER}")
-# endif()
-
 message(STATUS "Setting CUDA compiler from CUDA_PATH: ${CMAKE_CUDA_COMPILER}")
 
 project(Indra LANGUAGES CXX CUDA)
@@ -77,6 +60,14 @@ target_link_libraries(indra PRIVATE
   CUDA::cudart
   CUDA::cuda_driver
   CUDA::cufft
+)
+
+# Copy shaders directory to build output for hot-reload support
+add_custom_command(TARGET indra POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/shaders
+    $<TARGET_FILE_DIR:indra>/shaders
+  COMMENT "Copying shaders directory to build output"
 )
 
 enable_testing()

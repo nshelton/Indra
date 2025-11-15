@@ -3,53 +3,12 @@
 #include <iostream>
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
+#include <glog/logging.h>
 #include "PointCloudKernel.cuh"
-
-GLuint PointCloudRenderer::compileShader(GLenum type, const char *src)
-{
-    GLuint s = glCreateShader(type);
-    glShaderSource(s, 1, &src, nullptr);
-    glCompileShader(s);
-    GLint ok = 0;
-    glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
-    if (!ok)
-    {
-        GLint len = 0;
-        glGetShaderiv(s, GL_INFO_LOG_LENGTH, &len);
-        std::string log;
-        log.resize(static_cast<size_t>(len));
-        glGetShaderInfoLog(s, len, nullptr, log.data());
-        std::cerr << "PointCloudRenderer shader compile failed: " << log << std::endl;
-        glDeleteShader(s);
-        return 0;
-    }
-    return s;
-}
-
-GLuint PointCloudRenderer::linkProgram(GLuint vs, GLuint fs)
-{
-    GLuint p = glCreateProgram();
-    glAttachShader(p, vs);
-    glAttachShader(p, fs);
-    glLinkProgram(p);
-    GLint ok = 0;
-    glGetProgramiv(p, GL_LINK_STATUS, &ok);
-    if (!ok)
-    {
-        GLint len = 0;
-        glGetProgramiv(p, GL_INFO_LOG_LENGTH, &len);
-        std::string log;
-        log.resize(static_cast<size_t>(len));
-        glGetProgramInfoLog(p, len, nullptr, log.data());
-        std::cerr << "PointCloudRenderer link failed: " << log << std::endl;
-        glDeleteProgram(p);
-        return 0;
-    }
-    return p;
-}
 
 bool PointCloudRenderer::init()
 {
+    // Embedded fallback shaders (in case files can't be loaded)
     const char *vsSrc = R"(
 #version 330 core
 layout(location=0) in vec3 aPos;
@@ -76,24 +35,32 @@ void main(){
 }
 )";
 
-    GLuint vs = compileShader(GL_VERTEX_SHADER, vsSrc);
-    if (!vs)
-        return false;
-    GLuint fs = compileShader(GL_FRAGMENT_SHADER, fsSrc);
-    if (!fs)
+    // Create shader program
+    m_shaderProgram = std::make_unique<ShaderProgram>();
+
+    // Try to load from source directory first (for hot-reload during development)
+    // then fallback to build directory, then embedded shaders
+    bool success = m_shaderProgram->loadFromFiles("../../shaders/pointcloud.vert.glsl", "../../shaders/pointcloud.frag.glsl");
+
+    if (!success)
     {
-        glDeleteShader(vs);
+        // Try build directory
+        success = m_shaderProgram->loadFromFiles("shaders/pointcloud.vert.glsl", "shaders/pointcloud.frag.glsl");
+    }
+
+    if (!success)
+    {
+        LOG(WARNING) << "Failed to load shader files, using embedded shaders";
+        success = m_shaderProgram->loadFromSource(vsSrc, fsSrc);
+    }
+
+    if (!success)
+    {
+        LOG(ERROR) << "Failed to initialize PointCloud shaders: " << m_shaderProgram->getLastError();
         return false;
     }
-    m_program = linkProgram(vs, fs);
-    glDeleteShader(vs);
-    glDeleteShader(fs);
-    if (!m_program)
-        return false;
 
-    m_uViewProjMat = glGetUniformLocation(m_program, "uViewProjMat");
-    m_uPointSizePx = glGetUniformLocation(m_program, "uPointSizePx");
-
+    // Create vertex array and buffer
     glGenVertexArrays(1, &m_vao);
     glGenBuffers(1, &m_vbo);
 
@@ -106,6 +73,8 @@ void main(){
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(GLVertex), (void *)(3 * sizeof(float)));
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
+    LOG(INFO) << "PointCloudRenderer initialized successfully";
     return true;
 }
 
@@ -118,11 +87,12 @@ void PointCloudRenderer::shutdown()
         glDeleteVertexArrays(1, &m_vao);
     if (m_vbo)
         glDeleteBuffers(1, &m_vbo);
-    if (m_program)
-        glDeleteProgram(m_program);
+
+    // Shader program is automatically cleaned up by unique_ptr
+    m_shaderProgram.reset();
+
     m_vao = 0;
     m_vbo = 0;
-    m_program = 0;
     m_points.clear();
 }
 
@@ -152,14 +122,18 @@ void PointCloudRenderer::uploadToGPU()
 /// @param camera The camera to use for rendering
 void PointCloudRenderer::draw(const Camera &camera)
 {
-    if (m_points.empty())
+    if (m_points.empty() || !m_shaderProgram || !m_shaderProgram->isValid())
         return;
 
-    glUseProgram(m_program);
+    m_shaderProgram->use();
+
+    // Get uniform locations
+    GLint uViewProjMat = m_shaderProgram->getUniformLocation("uViewProjMat");
+    GLint uPointSizePx = m_shaderProgram->getUniformLocation("uPointSizePx");
 
     // Get view-projection matrix from camera
     matrix4 viewProj = camera.getViewProjectionMatrix();
-    glUniformMatrix4fv(m_uViewProjMat, 1, GL_TRUE, &viewProj.m[0][0]);
+    glUniformMatrix4fv(uViewProjMat, 1, GL_TRUE, &viewProj.m[0][0]);
 
     float pointDiameterPx = m_pointRadius * 2.0f;
     if (pointDiameterPx <= 0.0f)
@@ -168,7 +142,7 @@ void PointCloudRenderer::draw(const Camera &camera)
     }
 
     glEnable(GL_PROGRAM_POINT_SIZE);
-    glUniform1f(m_uPointSizePx, pointDiameterPx);
+    glUniform1f(uPointSizePx, pointDiameterPx);
 
     glBindVertexArray(m_vao);
     glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(m_points.size()));
@@ -258,6 +232,15 @@ void PointCloudRenderer::shutdownCudaInterop()
         m_cudaVboResource = nullptr;
     }
 
+    // Free FFT data buffer only if we own it
+    if (m_d_fftData && m_ownsFFTData)
+    {
+        cudaFree(m_d_fftData);
+        m_d_fftData = nullptr;
+        m_numFFTBins = 0;
+        m_ownsFFTData = false;
+    }
+
     m_cudaInteropInitialized = false;
 }
 
@@ -301,8 +284,9 @@ bool PointCloudRenderer::runCudaKernel(float deltaTime)
         return false;
     }
 
-    // Launch the CUDA kernel to process the vertices
-    err = launchAnimatePointsKernel(d_vertices, static_cast<int>(m_points.size()), deltaTime);
+    // Launch the CUDA kernel to process the vertices with FFT data
+    err = launchAnimatePointsKernel(d_vertices, static_cast<int>(m_points.size()), deltaTime,
+                                     m_d_fftData, m_numFFTBins);
     if (err != cudaSuccess)
     {
         std::cerr << "CUDA kernel launch failed: " << cudaGetErrorString(err) << std::endl;
@@ -319,4 +303,28 @@ bool PointCloudRenderer::runCudaKernel(float deltaTime)
     }
 
     return true;
+}
+
+bool PointCloudRenderer::reloadShaders()
+{
+    if (!m_shaderProgram)
+    {
+        LOG(WARNING) << "Cannot reload shaders: shader program not initialized";
+        return false;
+    }
+
+    LOG(INFO) << "Reloading PointCloud shaders...";
+
+    bool success = m_shaderProgram->reload();
+
+    if (success)
+    {
+        LOG(INFO) << "PointCloud shaders reloaded successfully!";
+    }
+    else
+    {
+        LOG(ERROR) << "Failed to reload PointCloud shaders: " << m_shaderProgram->getLastError();
+    }
+
+    return success;
 }

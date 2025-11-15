@@ -40,12 +40,9 @@ private:
     unsigned int m_channels;
     std::atomic<bool> m_isCapturing;
 
-    // Ring buffer for audio data
+    // Simple fixed buffer for latest audio chunk
     std::vector<float> m_audioBuffer;
     std::mutex m_bufferMutex;
-    size_t m_bufferSize;
-    size_t m_writePos;
-    std::atomic<bool> m_hasNewData;
 
     // Optional callback
     std::function<void(const float* data, unsigned int frameCount)> m_audioCallback;
