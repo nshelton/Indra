@@ -8,7 +8,7 @@
 #include <core/core.h>
 #include <util/Serialization.h>
 
-static const char* STATE_FILE = "project_state.json";
+static std::string STATE_FILE = "project_state.json";
 
 void MainScreen::onAttach(App &app)
 {
@@ -23,7 +23,15 @@ void MainScreen::onAttach(App &app)
     m_renderer.init();
 
     // Initialize serialization
-    serialization::loadState(m_shaderState, m_camera, m_renderer, STATE_FILE);
+    std::string error_string;
+    bool loaded = serialization::loadState(m_shaderState, m_camera, m_renderer, STATE_FILE, &error_string);
+    if (!loaded) {
+        LOG(ERROR) << "Failed to load state: " << error_string;
+    }
+    else {
+        LOG(INFO) << "Loaded state from " << STATE_FILE;
+    }
+
 
     // // Initialize audio capture and analyzer
     // if (m_audioCapture.initialize(44100, 2)) {
@@ -100,11 +108,15 @@ void MainScreen::onRender()
 
 void MainScreen::onDetach()
 {
-    m_renderer.shutdown();
     // Clean up any resources here
+    m_renderer.shutdown();
 
     // Save current state
-    serialization::saveState(m_shaderState, m_camera, m_renderer, STATE_FILE);
+    std::string error_string;
+    bool saved = serialization::saveState(m_shaderState, m_camera, m_renderer, STATE_FILE, &error_string);
+    if (!saved) {
+        LOG(ERROR) << "Failed to save state: " << error_string;
+    }
 }
 
 void MainScreen::onMouseButton(int button, int action, int /*mods*/, vec2 px)

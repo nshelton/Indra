@@ -49,7 +49,6 @@ namespace serialization
     bool saveState(const ShaderState &state, const Camera &camera, const Renderer &renderer,
                      const std::string &filePath, std::string *errorOut)
     {
-
         json j;
         j["schemaVersion"] = kSchemaVersion;
 

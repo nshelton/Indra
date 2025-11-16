@@ -26,8 +26,8 @@ public:
     const std::string& getUniformName() const { return m_uniformName; }
     const std::string& getDisplayName() const { return m_displayName; }
 
-    virtual void toJson(nlohmann::json& j) const;
-    virtual void fromJson(const nlohmann::json& j);
+    virtual void toJson(nlohmann::json& j) const = 0;
+    virtual void fromJson(const nlohmann::json& j) = 0;
 
 protected:
     std::string m_uniformName;
