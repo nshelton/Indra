@@ -99,6 +99,7 @@
     "condition_variable": "cpp",
     "future": "cpp",
     "mutex": "cpp",
-    "cstdarg": "cpp"
+    "cstdarg": "cpp",
+    "csignal": "cpp"
   }
 }

@@ -36,9 +36,9 @@ SPATIAL PRECISION VS SHARPNESS
 
 LIVE EXAMPLE OF FONT RENDERING
 ------------------------------
- - 1/4 x 1/4 resolution rendering 
+ - 1/4 x 1/4 resolution rendering
  - Render via stylized even field aperture grille (arcade Trinitron)
- - Font designed on pixel grid 
+ - Font designed on pixel grid
  - Font rendered via function of min 1D distance to capsules (for lines)
 
 
@@ -46,7 +46,7 @@ LIVE EXAMPLE OF FONT RENDERING
                          FILTERING DIGITAL ORIGAMI [b]
 ================================================================================
 
-      "Filtering is critical 
+      "Filtering is critical
               to convince the skeptical mind that a scene is believable"
 
 LIVE EXAMPLE OF SIMPLE SDF SCENE

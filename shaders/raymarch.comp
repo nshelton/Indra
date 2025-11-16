@@ -1,0 +1,99 @@
+#version 460 core
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(rgba16f, binding = 0) writeonly uniform image2D uOutputImage;
+
+uniform vec3 uCameraPos;
+uniform vec3 uCameraForward;
+uniform vec3 uCameraRight;
+uniform vec3 uCameraUp;
+uniform float uTanHalfFov;
+uniform float uAspect;
+
+uniform vec3 uSphereCenter;
+uniform float uSphereRadius;
+uniform vec3 uBackgroundColor;
+
+uniform int uViewportWidth;
+uniform int uViewportHeight;
+uniform int uMaxSteps;
+uniform float uMaxDistance;
+uniform float uSurfaceEpsilon;
+
+float sdfSphere(vec3 p)
+{
+    return length(p - uSphereCenter) - uSphereRadius;
+}
+
+float mapScene(vec3 p)
+{
+    return sdfSphere(p);
+}
+
+float raymarch(vec3 ro, vec3 rd)
+{
+    float depth = 0.0;
+    for (int i = 0; i < uMaxSteps; ++i)
+    {
+        vec3 pos = ro + rd * depth;
+        float dist = mapScene(pos);
+        if (dist < uSurfaceEpsilon)
+        {
+            return depth;
+        }
+        depth += dist;
+        if (depth >= uMaxDistance)
+        {
+            break;
+        }
+    }
+    return -1.0;
+}
+
+vec3 estimateNormal(vec3 p)
+{
+    const float h = 0.001;
+    vec2 e = vec2(1.0, -1.0);
+    return normalize(
+        e.xyy * mapScene(p + e.xyy * h) +
+        e.yyx * mapScene(p + e.yyx * h) +
+        e.yxy * mapScene(p + e.yxy * h) +
+        e.xxx * mapScene(p + e.xxx * h)
+    );
+}
+
+void main()
+{
+    uvec2 gid = gl_GlobalInvocationID.xy;
+    if (gid.x >= uint(uViewportWidth) || gid.y >= uint(uViewportHeight))
+    {
+        return;
+    }
+
+    vec2 resolution = vec2(float(uViewportWidth), float(uViewportHeight));
+    vec2 uv = (vec2(gid) + vec2(0.5)) / resolution;
+    float ndcX = uv.x * 2.0 - 1.0;
+    float ndcY = 1.0 - uv.y * 2.0;
+
+    vec3 rayDir = normalize(
+        uCameraForward +
+        ndcX * uTanHalfFov * uAspect * uCameraRight +
+        ndcY * uTanHalfFov * uCameraUp
+    );
+
+    float hit = raymarch(uCameraPos, rayDir);
+    vec3 color = uBackgroundColor;
+
+    if (hit > 0.0)
+    {
+        vec3 hitPos = uCameraPos + rayDir * hit;
+        vec3 normal = estimateNormal(hitPos);
+        vec3 lightDir = normalize(vec3(0.4, 0.8, 0.2));
+        float diffuse = max(dot(normal, lightDir), 0.0);
+        vec3 baseColor = vec3(0.9, 0.4, 0.2);
+        color = baseColor * diffuse + baseColor * 0.1;
+    }
+
+    imageStore(uOutputImage, ivec2(gid), vec4(color, 1.0));
+}

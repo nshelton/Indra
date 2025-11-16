@@ -2,12 +2,10 @@
 
 #include "core/Core.h"
 #include "render/LineRenderer.h"
-#include "render/MeshRenderer.h"
-#include "render/PointCloudRenderer.h"
+#include "render/Raymarcher.h"
 #include "render/Framebuffer.h"
 #include "render/PostProcessor.h"
 #include "Interaction.h"
-#include "Scene.h"
 #include "Camera.h"
 
 #include <glog/logging.h>
@@ -34,12 +32,9 @@ public:
         }
     }
 
-    void render(const Camera &camera, const SceneModel &scene, const InteractionState &uiState);
-    void setPoints(const std::vector<vec3> &points, color col);
+    void render(const Camera &camera, const Scene &scene, const InteractionState &uiState);
     void shutdown();
     void drawGui();
-
-    int totalVertices() const { return static_cast<int>(m_lines.totalVertices()); }
 
     // HDR postprocessing controls
     void setExposure(float exposure) { if (m_postProcessor) m_postProcessor->setExposure(exposure); }
@@ -51,17 +46,13 @@ public:
     float getGrainAmount() const { return m_postProcessor ? m_postProcessor->getGrainAmount() : 0.02f; }
 
     // Audio reactivity
-    void uploadFFTData(const std::vector<float>& fftMagnitudes) { m_points.uploadFFTData(fftMagnitudes); }
-    void setFFTDataGPU(const float* d_fftData, int numBins) { m_points.setFFTDataGPU(d_fftData, numBins); }
 
     // Hot-reload shaders and kernels
-    bool reloadShaders() { return m_points.reloadShaders(); }
-    bool reloadKernel() { return m_points.reloadKernel(); }
+    bool reloadShaders() { return m_raymarcher.reloadShaders(); }
 
 private:
     LineRenderer m_lines{};
-    MeshRenderer m_meshes{};
-    PointCloudRenderer m_points{};
+    Raymarcher m_raymarcher{};
     float m_time{0.0f};
 
     // HDR rendering

@@ -6,27 +6,13 @@
 Renderer::Renderer()
 {
    m_lines.init();
-   m_meshes.init();
-   m_points.init();
-   // CUDA interop will be initialized lazily on first runCudaKernel() call
-
+   m_raymarcher.init();
    // HDR framebuffer and postprocessor will be initialized on first setSize() call
    m_hdrFramebuffer = std::make_unique<Framebuffer>();
    m_postProcessor = std::make_unique<PostProcessor>();
 }
 
-void Renderer::setPoints(const std::vector<vec3> &points, color col)
-{
-   m_points.clear();
-   for (const auto &p : points)
-   {
-      m_points.addPoint(p, col);
-   }
-   // Upload initial data to GPU
-   m_points.uploadToGPU();
-}
-
-void Renderer::render(const Camera &camera, const SceneModel &scene, const InteractionState &uiState)
+void Renderer::render(const Camera &camera, const Scene &scene, const InteractionState &uiState)
 {
    // Check if HDR pipeline exists
    if (!m_hdrFramebuffer || !m_postProcessor) {
@@ -57,17 +43,8 @@ void Renderer::render(const Camera &camera, const SceneModel &scene, const Inter
    glClearColor(0.0f, 0.1f, 0.15f, 1.0f);
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-   // Render all meshes in the scene
-   for (const auto& m : const_cast<SceneModel&>(scene).meshes())
-   {
-      m_meshes.renderMesh(m, camera);
-   }
-
    // Run CUDA kernel to animate/process points on GPU (before drawing)
    m_time += 0.016f;  // Increment animation time (~60 FPS)
-   m_points.runCudaKernel(m_time);
-
-   m_points.draw(camera);
 
    // Draw ground plane grid
    vec3 gridCenter(0, 0, 0);
@@ -86,6 +63,7 @@ void Renderer::render(const Camera &camera, const SceneModel &scene, const Inter
    // Render lines (for debug/UI elements)
    m_lines.draw(camera);
 
+   m_raymarcher.draw(camera, scene);
    // Unbind HDR framebuffer
    m_hdrFramebuffer->unbind();
 
@@ -96,9 +74,7 @@ void Renderer::render(const Camera &camera, const SceneModel &scene, const Inter
 void Renderer::shutdown()
 {
    m_lines.shutdown();
-   m_meshes.shutdown();
-   m_points.shutdown();
-
+   m_raymarcher.shutdown();
    // HDR resources will be cleaned up automatically by unique_ptr destructors
    m_hdrFramebuffer.reset();
    m_postProcessor.reset();

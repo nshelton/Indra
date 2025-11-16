@@ -71,14 +71,6 @@ add_custom_command(TARGET indra POST_BUILD
   COMMENT "Copying shaders directory to build output"
 )
 
-# Copy kernels directory to build output for hot-reload support
-add_custom_command(TARGET indra POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_directory
-    ${CMAKE_SOURCE_DIR}/kernels
-    $<TARGET_FILE_DIR:indra>/kernels
-  COMMENT "Copying CUDA kernels directory to build output"
-)
-
 enable_testing()
 
 add_executable(indra_tests

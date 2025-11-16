@@ -32,13 +32,13 @@ class InteractionController
 public:
     void setScreenSize(const vec2& size) { m_screenSize = size; }
 
-    void updateHover(const SceneModel &scene, const Camera &camera, const vec2 &mousePx);
-    void onMouseDown(SceneModel &scene, Camera &camera, const vec2 &px);
+    void updateHover(const Scene &scene, const Camera &camera, const vec2 &mousePx);
+    void onMouseDown(Scene &scene, Camera &camera, const vec2 &px);
     // Begin a camera pan irrespective of what's under the cursor
     void beginPan(Camera &camera, const vec2 &px);
     void onMouseUp();
-    void onCursorPos(SceneModel &scene, Camera &camera, const vec2 &px);
-    void onScroll(SceneModel &scene, Camera &camera, float yoffset, const vec2 &px);
+    void onCursorPos(Scene &scene, Camera &camera, const vec2 &px);
+    void onScroll(Scene &scene, Camera &camera, float yoffset, const vec2 &px);
 
     const InteractionState &state() const { return m_state; }
 

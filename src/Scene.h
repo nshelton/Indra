@@ -3,31 +3,18 @@
 #include "core/core.h"
 #include "Scene.h"
 
-class SceneModel
+class Scene
 {
 public:
-    void initScene();
-    void clear()
+    void reset()
     {
-        // Clear the scene data
+        backgroundColor = vec3{0.0f, 0.0f, 0.0f};
+        spherePosition = vec3{0.0f, 0.0f, 0.0f};
+        sphereRadius = 1.0f;
     }
-
-    void addMesh(const mesh &m)
-    {
-        m_meshes.push_back(m);
-    }
-
-    const std::vector<mesh> &meshes() const { return m_meshes; }
-    const std::vector<vec3> &points() const { return m_points; }
-
-    bool needsUpload() const { return m_needsUpload; }
-    void setNeedsUpload(bool value) { m_needsUpload = value; }
-
-    int m_numPoints = 1024 * 1024;
-
 
 private:
-    std::vector<mesh> m_meshes;
-    std::vector<vec3> m_points;
-    bool m_needsUpload = false;
+    vec3 backgroundColor{0.0f, 0.0f, 0.0f};
+    vec3 spherePosition{0.0f, 0.0f, 0.0f};
+    float sphereRadius{1.0f};
 };
