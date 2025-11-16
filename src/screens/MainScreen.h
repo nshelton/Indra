@@ -4,6 +4,7 @@
 #include <imgui.h>
 #include "Camera.h"
 #include "Renderer.h"
+#include "ShaderState.h"
 #include "audio/AudioCapture.h"
 #include "audio/AudioAnalyzer.h"
 #include "util/FileWatcher.h"
@@ -29,7 +30,7 @@ private:
     Camera m_camera{};
     Renderer m_renderer{};
     InteractionController m_interaction{};
-    Scene m_scene{};
+    ShaderState m_shaderState{};
 
     float m_currentFPS{0.0f};
 

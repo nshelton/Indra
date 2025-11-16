@@ -59,21 +59,48 @@ void TrackballController::rotate(Camera& camera, const vec2& delta, const vec2& 
     // This ensures the up vector stays as world Y
     vec3 forward = (target - (target + offsetAfterY)).normalized();
     vec3 worldUp(0, 1, 0);
-    vec3 right = forward.cross(worldUp).normalized();
+    vec3 right = forward.cross(worldUp);
 
-    // Clamp vertical angle to prevent flipping
+    // If right vector is too small (near pole), use a safe fallback
+    float rightLength = right.length();
+    if (rightLength < 0.01f)
+    {
+        // Near the pole - use XZ plane directly to compute a stable right vector
+        right = vec3(-offsetAfterY.z, 0, offsetAfterY.x);
+        rightLength = right.length();
+        if (rightLength < 0.01f)
+        {
+            // Fallback to a fixed right vector if still unstable
+            right = vec3(1, 0, 0);
+        }
+        else
+        {
+            right = right / rightLength;
+        }
+    }
+    else
+    {
+        right = right / rightLength;
+    }
+
+    // Clamp vertical angle to prevent gimbal lock
     // Calculate current elevation angle
     vec3 horizontalDir(offsetAfterY.x, 0, offsetAfterY.z);
     float horizontalDist = horizontalDir.length();
-    if (horizontalDist < 0.01f) horizontalDist = 0.01f; // Avoid division by zero
 
     float currentElevation = std::atan2(offsetAfterY.y, horizontalDist);
     float newElevation = currentElevation + angleY;
 
-    // Clamp to prevent going over the poles (leaving small margin)
-    const float maxElevation = 1.5f; // About 85 degrees
+    // Clamp to prevent going over the poles (leaving safe margin to avoid gimbal lock)
+    const float maxElevation = 1.4f; // About 80 degrees - prevents gimbal lock and numerical instability
     newElevation = std::max(-maxElevation, std::min(maxElevation, newElevation));
     angleY = newElevation - currentElevation;
+
+    // Skip rotation if we're too close to the pole (prevents glitchy behavior)
+    if (std::abs(newElevation) >= maxElevation - 0.01f && std::abs(angleY) < 0.001f)
+    {
+        angleY = 0.0f;
+    }
 
     // Apply vertical rotation around the right vector
     quaternion rotX = quaternion::fromAxisAngle(right, angleY);

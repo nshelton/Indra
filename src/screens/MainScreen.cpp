@@ -13,26 +13,27 @@ void MainScreen::onAttach(App &app)
     google::SetStderrLogging(google::GLOG_INFO);
 
     m_app = &app;
-    m_scene.reset();
+    m_shaderState.reset();
+    m_camera = Camera(vec3(100.0f, 100.0f, 100.0f), vec3(0.0f, 0.0f, 0.0f));
 
-    // Initialize audio capture and analyzer
-    if (m_audioCapture.initialize(44100, 2)) {
-        LOG(INFO) << "Audio capture initialized successfully";
-        if (m_audioAnalyzer.initialize(2048)) {
-            LOG(INFO) << "Audio analyzer initialized successfully";
-            m_audioAnalyzer.getFrequencyBins(m_frequencyBins, 44100);
-        }
-    }
+    // Initialize renderer now that OpenGL context is ready
+    m_renderer.init();
+
+    // // Initialize audio capture and analyzer
+    // if (m_audioCapture.initialize(44100, 2)) {
+    //     LOG(INFO) << "Audio capture initialized successfully";
+    //     if (m_audioAnalyzer.initialize(2048)) {
+    //         LOG(INFO) << "Audio analyzer initialized successfully";
+    //         m_audioAnalyzer.getFrequencyBins(m_frequencyBins, 44100);
+    //     }
+    // }
 
     // Set up automatic shader hot-reload
-    m_shaderWatcher.watch("../../shaders/pointcloud.vert.glsl", [this](const std::string& path) {
+    m_shaderWatcher.watch("../../shaders/raymarch.comp", [this](const std::string& path) {
         LOG(INFO) << "Detected change in " << path << ", reloading shaders...";
         m_renderer.reloadShaders();
     });
-    m_shaderWatcher.watch("../../shaders/pointcloud.frag.glsl", [this](const std::string& path) {
-        LOG(INFO) << "Detected change in " << path << ", reloading shaders...";
-        m_renderer.reloadShaders();
-    });
+
     LOG(INFO) << "Shader auto-reload enabled ";
 }
 
@@ -88,7 +89,7 @@ void MainScreen::onUpdate(double dt)
 
 void MainScreen::onRender()
 {
-    m_renderer.render(m_camera, m_scene, m_interaction.state());
+    m_renderer.render(m_camera, m_shaderState, m_interaction.state());
 }
 
 void MainScreen::onDetach()
@@ -101,7 +102,7 @@ void MainScreen::onMouseButton(int button, int action, int /*mods*/, vec2 px)
 {
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
     {
-        m_interaction.onMouseDown(m_scene, m_camera, px);
+        m_interaction.onMouseDown(m_shaderState, m_camera, px);
     }
     else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE)
     {
@@ -120,10 +121,10 @@ void MainScreen::onMouseButton(int button, int action, int /*mods*/, vec2 px)
 
 void MainScreen::onCursorPos(vec2 px)
 {
-    m_interaction.onCursorPos(m_scene, m_camera, px);
+    m_interaction.onCursorPos(m_shaderState, m_camera, px);
 }
 
 void MainScreen::onScroll(double xoffset, double yoffset, vec2 px)
 {
-    m_interaction.onScroll(m_scene, m_camera, static_cast<float>(yoffset), px);
+    m_interaction.onScroll(m_shaderState, m_camera, static_cast<float>(yoffset), px);
 }

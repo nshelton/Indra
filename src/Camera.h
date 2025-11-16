@@ -4,7 +4,7 @@
 #include <core/core.h>
 #include <cmath>
 
-class Camera
+struct Camera
 {
 public:
     Camera();
@@ -32,6 +32,10 @@ public:
     vec3 getForward() const { return m_forward; }
     vec3 getRight() const { return m_right; }
     vec3 getUp() const { return m_up; }
+
+    // Get camera parameters
+    float getFov() const { return m_fov; }
+    float getAspect() const { return m_aspect; }
 
     // Draw camera info GUI
     void drawGui() const;

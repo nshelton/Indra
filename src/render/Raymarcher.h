@@ -5,8 +5,8 @@
 #include <memory>
 #include "core/core.h"
 #include "Camera.h"
-#include "ShaderProgram.h"
-#include "Scene.h"
+#include "ComputeShader.h"
+#include "../ShaderState.h"
 
 class Raymarcher
 {
@@ -14,25 +14,47 @@ public:
     bool init();
     void shutdown();
 
-    void draw(const Camera& camera, const Scene& scene);
+    void draw(const Camera& camera, const ShaderState& shaderState);
 
     bool reloadShaders();
 
+    void setViewportSize(int width, int height);
+
+    /// @brief Get the output texture that the raymarcher writes to
+    GLuint getOutputTexture() const { return m_outputTexture; }
+
+    /// @brief Get GPU execution time of the last raymarch pass
+    /// @return Execution time in milliseconds
+    float getExecutionTimeMs() const
+    {
+        return m_computeShader ? m_computeShader->getLastExecutionTimeMs() : 0.0f;
+    }
+
+    /// @brief Get work group size used by the compute shader
+    void getWorkGroupSize(GLint& sizeX, GLint& sizeY, GLint& sizeZ) const
+    {
+        if (m_computeShader)
+        {
+            m_computeShader->getWorkGroupSize(sizeX, sizeY, sizeZ);
+        }
+        else
+        {
+            sizeX = sizeY = sizeZ = 0;
+        }
+    }
+
 private:
-    struct GLVertex { float x, y, z, r, g, b, a; };
+    // Helper functions
+    void createOutputTexture();
 
-    // Shader management
-    std::unique_ptr<ShaderProgram> m_shaderProgram;
+    // Compute shader for raymarching
+    std::unique_ptr<ComputeShader> m_computeShader;
 
+    // Output texture that the compute shader writes to
+    GLuint m_outputTexture{0};
 
-    float m_pointRadius{1.0f};
-
-    std::vector<GLVertex> m_points;   // point vertices (single positions)
-
-    // FFT data for audio reactivity
-    // float* m_d_fftData{nullptr};  // Device pointer for FFT data
-    // int m_numFFTBins{0};
-    // bool m_ownsFFTData{false};  // Track if we allocated the FFT buffer (and should free it)
-
+    // Viewport dimensions
+    int m_viewportWidth{1920};
+    int m_viewportHeight{1080};
 };
 

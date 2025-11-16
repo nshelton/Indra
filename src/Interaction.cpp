@@ -1,17 +1,17 @@
 #include "Interaction.h"
 
-#include "Scene.h"
+#include "ShaderState.h"
 #include "Camera.h"
 #include "core/core.h"
 #include <glog/logging.h>
 #include <cmath>
 
-void InteractionController::updateHover(const Scene &scene, const Camera &camera, const vec2 &mouseWorld)
+void InteractionController::updateHover(const ShaderState &shaderState, const Camera &camera, const vec2 &mouseWorld)
 {
     // TODO: Implement hover detection for scene entities
 }
 
-void InteractionController::onMouseDown(Scene &scene, Camera &camera, const vec2 &px)
+void InteractionController::onMouseDown(ShaderState &shaderState, Camera &camera, const vec2 &px)
 {
     m_lastMousePos = px;
     m_state.mode = InteractionMode::Rotate;
@@ -23,7 +23,7 @@ void InteractionController::beginPan(Camera &camera, const vec2 &px)
     m_state.mode = InteractionMode::Pan;
 }
 
-void InteractionController::onCursorPos(Scene &scene, Camera &camera, const vec2 &px)
+void InteractionController::onCursorPos(ShaderState &shaderState, Camera &camera, const vec2 &px)
 {
     vec2 delta = px - m_lastMousePos;
 
@@ -39,7 +39,7 @@ void InteractionController::onCursorPos(Scene &scene, Camera &camera, const vec2
     m_lastMousePos = px;
 }
 
-void InteractionController::onScroll(Scene &scene, Camera &camera, float yoffset, const vec2 &px)
+void InteractionController::onScroll(ShaderState &shaderState, Camera &camera, float yoffset, const vec2 &px)
 {
     m_trackball.zoom(camera, yoffset);
 }

@@ -1,99 +1,18 @@
-#include "ShaderProgram.h"
+#include "GraphicsShader.h"
 #include <glog/logging.h>
-#include <fstream>
-#include <sstream>
-#include <filesystem>
 
-ShaderProgram::ShaderProgram()
-    : m_program(0)
-    , m_isValid(false)
+GraphicsShader::GraphicsShader()
+    : Shader()
 {
 }
 
-ShaderProgram::~ShaderProgram()
+void GraphicsShader::setFallbackSource(const std::string& vertexSource, const std::string& fragmentSource)
 {
-    if (m_program != 0)
-    {
-        glDeleteProgram(m_program);
-    }
+    m_fallbackVertexSource = vertexSource;
+    m_fallbackFragmentSource = fragmentSource;
 }
 
-std::string ShaderProgram::readFile(const std::string& path)
-{
-    // Get absolute path for better error messages
-    std::filesystem::path absPath = std::filesystem::absolute(path);
-
-    std::ifstream file(path);
-    if (!file.is_open())
-    {
-        m_lastError = "Failed to open file: " + path + "\n  Absolute path: " + absPath.string() +
-                      "\n  Current working directory: " + std::filesystem::current_path().string();
-        LOG(ERROR) << m_lastError;
-        return "";
-    }
-
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-
-    LOG(INFO) << "Successfully loaded shader from: " << absPath.string();
-    return buffer.str();
-}
-
-std::filesystem::file_time_type ShaderProgram::getFileModTime(const std::string& path) const
-{
-    try
-    {
-        return std::filesystem::last_write_time(path);
-    }
-    catch (const std::filesystem::filesystem_error& e)
-    {
-        LOG(WARNING) << "Failed to get modification time for " << path << ": " << e.what();
-        return std::filesystem::file_time_type{};
-    }
-}
-
-bool ShaderProgram::compileShader(GLuint shader, const char* source, const std::string& shaderName)
-{
-    glShaderSource(shader, 1, &source, nullptr);
-    glCompileShader(shader);
-
-    GLint success;
-    glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-
-    if (!success)
-    {
-        char infoLog[512];
-        glGetShaderInfoLog(shader, 512, nullptr, infoLog);
-        m_lastError = shaderName + " compilation failed:\n" + infoLog;
-        LOG(ERROR) << m_lastError;
-        return false;
-    }
-
-    LOG(INFO) << shaderName << " compiled successfully";
-    return true;
-}
-
-bool ShaderProgram::linkProgram(GLuint program)
-{
-    glLinkProgram(program);
-
-    GLint success;
-    glGetProgramiv(program, GL_LINK_STATUS, &success);
-
-    if (!success)
-    {
-        char infoLog[512];
-        glGetProgramInfoLog(program, 512, nullptr, infoLog);
-        m_lastError = "Program linking failed:\n" + std::string(infoLog);
-        LOG(ERROR) << m_lastError;
-        return false;
-    }
-
-    LOG(INFO) << "Shader program linked successfully";
-    return true;
-}
-
-bool ShaderProgram::loadFromFiles(const std::string& vertexPath, const std::string& fragmentPath)
+bool GraphicsShader::loadFromFiles(const std::string& vertexPath, const std::string& fragmentPath)
 {
     m_vertexPath = vertexPath;
     m_fragmentPath = fragmentPath;
@@ -121,7 +40,7 @@ bool ShaderProgram::loadFromFiles(const std::string& vertexPath, const std::stri
     return loadFromSource(vertexSource.c_str(), fragmentSource.c_str());
 }
 
-bool ShaderProgram::loadFromSource(const char* vertexSource, const char* fragmentSource)
+bool GraphicsShader::loadFromSource(const char* vertexSource, const char* fragmentSource)
 {
     // Create shaders
     GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -173,11 +92,11 @@ bool ShaderProgram::loadFromSource(const char* vertexSource, const char* fragmen
     m_isValid = true;
     m_lastError.clear();
 
-    LOG(INFO) << "Shader program created successfully (ID: " << m_program << ")";
+    LOG(INFO) << "Graphics shader program created successfully (ID: " << m_program << ")";
     return true;
 }
 
-bool ShaderProgram::reload()
+bool GraphicsShader::reload()
 {
     if (m_vertexPath.empty() || m_fragmentPath.empty())
     {
@@ -218,24 +137,7 @@ bool ShaderProgram::reload()
     return true;
 }
 
-void ShaderProgram::use() const
-{
-    if (m_isValid && m_program != 0)
-    {
-        glUseProgram(m_program);
-    }
-}
-
-GLint ShaderProgram::getUniformLocation(const char* name) const
-{
-    if (!m_isValid || m_program == 0)
-    {
-        return -1;
-    }
-    return glGetUniformLocation(m_program, name);
-}
-
-bool ShaderProgram::filesModified() const
+bool GraphicsShader::filesModified() const
 {
     if (m_vertexPath.empty() || m_fragmentPath.empty())
     {

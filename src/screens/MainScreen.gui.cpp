@@ -15,6 +15,9 @@ void MainScreen::onGui()
     // Camera info
     m_camera.drawGui();
 
+    // Shader parameters (scene + raymarching)
+    m_shaderState.drawGui();
+
     // Renderer controls
     m_renderer.drawGui();
 

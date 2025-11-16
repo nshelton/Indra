@@ -20,8 +20,8 @@ App::App(int width, int height, const char *title)
         throw std::runtime_error("GLFW init failed");
     }
 
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     // Append build configuration to window title
@@ -56,6 +56,11 @@ App::App(int width, int height, const char *title)
         throw std::runtime_error("GLAD init failed");
     }
 
+    // Log OpenGL version
+    LOG(INFO) << "OpenGL Version: " << glGetString(GL_VERSION);
+    LOG(INFO) << "GLSL Version: " << glGetString(GL_SHADING_LANGUAGE_VERSION);
+    LOG(INFO) << "Renderer: " << glGetString(GL_RENDERER);
+
     glfwSwapInterval(1);
     glViewport(0, 0, width, height);
     glClearColor(0.1f, 0.1f, 0.12f, 1.0f);
@@ -65,7 +70,7 @@ App::App(int width, int height, const char *title)
     ImGui::CreateContext();
     ImGui::StyleColorsDark();
     ImGui_ImplGlfw_InitForOpenGL(m_window, false);
-    ImGui_ImplOpenGL3_Init("#version 330 core");
+    ImGui_ImplOpenGL3_Init("#version 460 core");
 }
 
 App::~App()

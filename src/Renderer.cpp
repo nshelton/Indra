@@ -5,32 +5,29 @@
 
 Renderer::Renderer()
 {
-   m_lines.init();
-   m_raymarcher.init();
-   // HDR framebuffer and postprocessor will be initialized on first setSize() call
+   // OpenGL resources will be initialized in init()
    m_hdrFramebuffer = std::make_unique<Framebuffer>();
    m_postProcessor = std::make_unique<PostProcessor>();
 }
 
-void Renderer::render(const Camera &camera, const Scene &scene, const InteractionState &uiState)
+void Renderer::init()
 {
-   // Check if HDR pipeline exists
-   if (!m_hdrFramebuffer || !m_postProcessor) {
-      LOG(WARNING) << "HDR pipeline not initialized, skipping render";
+   LOG(INFO) << "Initializing renderer OpenGL resources";
+   m_lines.init();
+   m_raymarcher.init();
+   TextureBlit::init();
+   m_initialized = true;
+}
+
+void Renderer::render(const Camera &camera, const ShaderState &shaderState, const InteractionState &uiState)
+{
+   if (!m_initialized) {
+      LOG(WARNING) << "Renderer not initialized, call init() first";
       return;
    }
 
-   // Initialize HDR pipeline on first render if size is set
-   if (m_width > 0 && m_height > 0 && m_hdrFramebuffer->getFBO() == 0) {
-      LOG(INFO) << "Creating HDR framebuffer: " << m_width << "x" << m_height;
-      m_hdrFramebuffer->createHDR(m_width, m_height);
-      m_postProcessor->init(m_width, m_height);
-      LOG(INFO) << "HDR pipeline initialized successfully";
-   }
-
-   // Don't render if framebuffer isn't initialized yet
-   if (m_hdrFramebuffer->getFBO() == 0) {
-      LOG(WARNING) << "HDR framebuffer FBO is 0, skipping render (width=" << m_width << ", height=" << m_height << ")";
+   if (!m_hdrFramebuffer || m_hdrFramebuffer->getFBO() == 0) {
+      LOG(WARNING) << "HDR framebuffer not ready, call setSize() first";
       return;
    }
 
@@ -40,7 +37,7 @@ void Renderer::render(const Camera &camera, const Scene &scene, const Interactio
    m_hdrFramebuffer->bind();
 
    // Clear the HDR buffer
-   glClearColor(0.0f, 0.1f, 0.15f, 1.0f);
+   glClearColor(0.f, 0.f, 0.f, 1.0f);
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
    // Run CUDA kernel to animate/process points on GPU (before drawing)
@@ -63,7 +60,12 @@ void Renderer::render(const Camera &camera, const Scene &scene, const Interactio
    // Render lines (for debug/UI elements)
    m_lines.draw(camera);
 
-   m_raymarcher.draw(camera, scene);
+   // Raymarch to texture (doesn't draw to framebuffer directly)
+   m_raymarcher.draw(camera, shaderState);
+
+   // Blit raymarcher output to HDR framebuffer
+   TextureBlit::blit(m_raymarcher.getOutputTexture());
+
    // Unbind HDR framebuffer
    m_hdrFramebuffer->unbind();
 
@@ -75,6 +77,8 @@ void Renderer::shutdown()
 {
    m_lines.shutdown();
    m_raymarcher.shutdown();
+   TextureBlit::shutdown();
+
    // HDR resources will be cleaned up automatically by unique_ptr destructors
    m_hdrFramebuffer.reset();
    m_postProcessor.reset();

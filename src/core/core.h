@@ -8,3 +8,10 @@
 #include "./matrix4.h"
 #include "./color.h"
 #include "./mesh.h"
+
+
+template<typename T>
+T clamp(T v, T min, T max)
+{
+    return (v < min) ? min : (v > max) ? max : v;
+}

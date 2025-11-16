@@ -3,7 +3,7 @@
 #include <optional>
 #include "core/core.h"
 #include "Camera.h"
-#include "Scene.h"
+#include "ShaderState.h"
 #include "TrackballController.h"
 
 #define HANDLE_HITBOX_RADIUS 10.0f
@@ -32,13 +32,13 @@ class InteractionController
 public:
     void setScreenSize(const vec2& size) { m_screenSize = size; }
 
-    void updateHover(const Scene &scene, const Camera &camera, const vec2 &mousePx);
-    void onMouseDown(Scene &scene, Camera &camera, const vec2 &px);
+    void updateHover(const ShaderState &shaderState, const Camera &camera, const vec2 &mousePx);
+    void onMouseDown(ShaderState &shaderState, Camera &camera, const vec2 &px);
     // Begin a camera pan irrespective of what's under the cursor
     void beginPan(Camera &camera, const vec2 &px);
     void onMouseUp();
-    void onCursorPos(Scene &scene, Camera &camera, const vec2 &px);
-    void onScroll(Scene &scene, Camera &camera, float yoffset, const vec2 &px);
+    void onCursorPos(ShaderState &shaderState, Camera &camera, const vec2 &px);
+    void onScroll(ShaderState &shaderState, Camera &camera, float yoffset, const vec2 &px);
 
     const InteractionState &state() const { return m_state; }
 

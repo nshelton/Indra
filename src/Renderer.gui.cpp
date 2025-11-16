@@ -46,4 +46,22 @@ void Renderer::drawGui()
     }
 
     ImGui::SameLine();
+
+    // Display GPU performance metrics
+    ImGui::Separator();
+    ImGui::Text("GPU Performance");
+
+    float execTime = getRaymarcherExecutionTimeMs();
+    ImGui::Text("Raymarch Time: %.3f ms", execTime);
+
+    GLint workGroupX = 0, workGroupY = 0, workGroupZ = 0;
+    getRaymarcherWorkGroupSize(workGroupX, workGroupY, workGroupZ);
+    ImGui::Text("Work Group Size: %dx%dx%d", workGroupX, workGroupY, workGroupZ);
+
+    // Calculate approximate number of threads
+    if (workGroupX > 0 && workGroupY > 0 && workGroupZ > 0)
+    {
+        int totalThreadsPerGroup = workGroupX * workGroupY * workGroupZ;
+        ImGui::Text("Threads/Group: %d", totalThreadsPerGroup);
+    }
 }
