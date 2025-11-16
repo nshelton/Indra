@@ -8,6 +8,7 @@ ShaderState::ShaderState()
     addParameter<Vec3Parameter>("u_paramA", "u_paramA", "u_paramA", -1.0f, 1.0f, vec3(0.0f, 0.0f, 0.0f));
     addParameter<Vec3Parameter>("u_paramB", "u_paramB", "u_paramB", -1.0f, 1.0f, vec3(0.0f, 0.0f, 0.0f));
     addParameter<Vec3Parameter>("u_paramC", "u_paramC", "u_paramC", -1.0f, 1.0f, vec3(0.0f, 0.0f, 0.0f));
+    addParameter<Vec3Parameter>("u_paramD", "u_paramD", "u_paramD", -1.0f, 1.0f, vec3(0.0f, 0.0f, 0.0f));
     addParameter<FloatParameter>("_LEVELS", "Levels", "_LEVELS", 1.0f, 10.0f, 6.0f);
 
     addParameter<IntParameter>("Max Steps", "Max Steps", "uMaxSteps", 1, 500, 100);

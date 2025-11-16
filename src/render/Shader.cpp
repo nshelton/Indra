@@ -6,8 +6,7 @@
 #include <set>
 
 Shader::Shader()
-    : m_program(0)
-    , m_isValid(false)
+    : m_program(0), m_isValid(false)
 {
 }
 
@@ -19,7 +18,7 @@ Shader::~Shader()
     }
 }
 
-std::string Shader::readFile(const std::string& path)
+std::string Shader::readFile(const std::string &path)
 {
     // Get absolute path for better error messages
     std::filesystem::path absPath = std::filesystem::absolute(path);
@@ -51,20 +50,20 @@ std::string Shader::readFile(const std::string& path)
     return preprocessed;
 }
 
-std::filesystem::file_time_type Shader::getFileModTime(const std::string& path) const
+std::filesystem::file_time_type Shader::getFileModTime(const std::string &path) const
 {
     try
     {
         return std::filesystem::last_write_time(path);
     }
-    catch (const std::filesystem::filesystem_error& e)
+    catch (const std::filesystem::filesystem_error &e)
     {
         LOG(WARNING) << "Failed to get modification time for " << path << ": " << e.what();
         return std::filesystem::file_time_type{};
     }
 }
 
-bool Shader::compileShader(GLuint shader, const char* source, const std::string& shaderName)
+bool Shader::compileShader(GLuint shader, const char *source, const std::string &shaderName)
 {
     glShaderSource(shader, 1, &source, nullptr);
     glCompileShader(shader);
@@ -78,6 +77,38 @@ bool Shader::compileShader(GLuint shader, const char* source, const std::string&
         glGetShaderInfoLog(shader, 512, nullptr, infoLog);
         m_lastError = shaderName + " compilation failed:\n" + infoLog;
         LOG(ERROR) << m_lastError;
+
+        // extract line num from message error line is of the form ({col}){linenum}
+        std::regex lineNumRegex(R"(\((\d+)\))");
+        std::smatch lineNumMatch;
+        int errorLineNum = -1;
+        if (std::regex_search(m_lastError, lineNumMatch, lineNumRegex))
+        {
+            errorLineNum = std::stoi(lineNumMatch[1].str());
+        }
+
+        char shadersrc[4096];
+        glGetShaderSource(shader, 4096, nullptr, shadersrc);
+        // split source into lines for better debugging
+        std::istringstream srcStream(shadersrc);
+        std::string srcLine;
+        int lineNum = 1;
+        while (std::getline(srcStream, srcLine))
+        {
+            if (std::abs(lineNum - errorLineNum) <= 2)
+            {
+                if (lineNum == errorLineNum)
+                {
+                    LOG(ERROR) << ">> " << lineNum << ": " << srcLine;
+                }
+                else
+                {
+                    LOG(ERROR) << lineNum << ": " << srcLine;
+                }
+            }
+            lineNum++;
+        }
+
         return false;
     }
 
@@ -105,9 +136,9 @@ bool Shader::linkProgram(GLuint program)
     return true;
 }
 
-std::string Shader::preprocessIncludes(const std::string& source,
-                                       const std::filesystem::path& baseDir,
-                                       std::set<std::string>& includedFiles)
+std::string Shader::preprocessIncludes(const std::string &source,
+                                       const std::filesystem::path &baseDir,
+                                       std::set<std::string> &includedFiles)
 {
     // Regular expression to match #include "file.glsl" or #include <file.glsl>
     std::regex includeRegex(R"(^\s*#include\s+[\"<]([^\">\s]+)[\">]\s*$)");
@@ -136,7 +167,7 @@ std::string Shader::preprocessIncludes(const std::string& source,
                 // Get canonical path to handle . and .. in paths
                 canonicalPath = std::filesystem::canonical(fullPath).string();
             }
-            catch (const std::filesystem::filesystem_error& e)
+            catch (const std::filesystem::filesystem_error &e)
             {
                 // If canonical fails (file doesn't exist), try with absolute
                 fullPath = std::filesystem::absolute(baseDir / includePath);
@@ -147,7 +178,7 @@ std::string Shader::preprocessIncludes(const std::string& source,
             if (includedFiles.find(canonicalPath) != includedFiles.end())
             {
                 LOG(WARNING) << "Circular include detected: " << includePath
-                           << " (already included from " << canonicalPath << ")";
+                             << " (already included from " << canonicalPath << ")";
                 result << "// Circular include skipped: " << includePath << "\n";
                 continue;
             }
@@ -160,8 +191,8 @@ std::string Shader::preprocessIncludes(const std::string& source,
             if (!includeFile.is_open())
             {
                 LOG(ERROR) << "Failed to open included file: " << includePath
-                          << "\n  Full path: " << fullPath.string()
-                          << "\n  Base directory: " << baseDir.string();
+                           << "\n  Full path: " << fullPath.string()
+                           << "\n  Base directory: " << baseDir.string();
                 result << "// ERROR: Failed to include: " << includePath << "\n";
                 continue;
             }
@@ -206,7 +237,7 @@ void Shader::use() const
     }
 }
 
-GLint Shader::getUniformLocation(const char* name) const
+GLint Shader::getUniformLocation(const char *name) const
 {
     if (!m_isValid || m_program == 0)
     {
