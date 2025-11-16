@@ -1,7 +1,13 @@
-#include "PointCloudKernel.cuh"
-#include <cuda_runtime.h>
-#include <device_launch_parameters.h>
-#include <cmath>
+// Particle data structure for physics simulation
+struct ParticleData
+{
+    float vx, vy, vz;     // Velocity (vec3)
+    float age;            // Current age in seconds
+    float maxAge;         // Maximum age before respawn
+    float pressure;       // Pressure value
+    float u, v;           // UV coordinates
+};
+
 
 // Simple hash-based random number generator for CUDA
 __device__ float randomFloat(unsigned int seed)
@@ -43,7 +49,7 @@ __device__ float3 TurboColormap(float x) {
 }
 
 // CUDA kernel to animate points with audio-reactive effects using FFT data
-__global__ void animatePointsKernel(float *vertices, ParticleData *particleData,
+extern "C" __global__ void animatePointsKernel(float *vertices, ParticleData *particleData,
                                     int numPoints, float deltaTime,
                                     const float *fftData, int numFFTBins)
 {
@@ -127,22 +133,3 @@ __global__ void animatePointsKernel(float *vertices, ParticleData *particleData,
 }
 
 // Host function to launch the kernel
-cudaError_t launchAnimatePointsKernel(float *d_vertices, ParticleData *d_particleData,
-                                      int numPoints, float deltaTime,
-                                      const float *d_fftData, int numFFTBins)
-{
-    int blockSize = 256;
-    int numBlocks = (numPoints + blockSize - 1) / blockSize;
-
-    animatePointsKernel<<<numBlocks, blockSize>>>(d_vertices, d_particleData, numPoints, deltaTime, d_fftData, numFFTBins);
-
-    // Check for kernel launch errors
-    cudaError_t err = cudaGetLastError();
-    if (err != cudaSuccess)
-    {
-        return err;
-    }
-
-    // Wait for kernel to complete
-    return cudaDeviceSynchronize();
-}

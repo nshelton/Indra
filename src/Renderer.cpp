@@ -54,7 +54,7 @@ void Renderer::render(const Camera &camera, const SceneModel &scene, const Inter
    m_hdrFramebuffer->bind();
 
    // Clear the HDR buffer
-   glClearColor(0.1f, 0.1f, 0.15f, 1.0f);
+   glClearColor(0.0f, 0.1f, 0.15f, 1.0f);
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
    // Render all meshes in the scene

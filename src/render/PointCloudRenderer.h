@@ -6,6 +6,7 @@
 #include "core/core.h"
 #include "Camera.h"
 #include "ShaderProgram.h"
+#include "CudaKernel.h"
 
 // Forward declare CUDA types to avoid requiring CUDA headers in this header
 struct cudaGraphicsResource;
@@ -48,14 +49,16 @@ public:
     // Use FFT data directly from GPU (avoids CPU round-trip)
     void setFFTDataGPU(const float* d_fftData, int numBins);
 
-    // Hot-reload shaders
+    // Hot-reload shaders and kernels
     bool reloadShaders();
+    bool reloadKernel();
 
 private:
     struct GLVertex { float x, y, z, r, g, b, a; };
 
     // Shader management
     std::unique_ptr<ShaderProgram> m_shaderProgram;
+    std::unique_ptr<CudaKernel> m_cudaKernel;
     GLuint m_vao{0};
     GLuint m_vbo{0};
 
@@ -72,5 +75,8 @@ private:
     float* m_d_fftData{nullptr};  // Device pointer for FFT data
     int m_numFFTBins{0};
     bool m_ownsFFTData{false};  // Track if we allocated the FFT buffer (and should free it)
+
+    // Particle data (using void* to avoid including CUDA headers in header)
+    void* m_d_particleData{nullptr};  // Device pointer for particle data (actually ParticleData*)
 };
 

@@ -54,8 +54,9 @@ public:
     void uploadFFTData(const std::vector<float>& fftMagnitudes) { m_points.uploadFFTData(fftMagnitudes); }
     void setFFTDataGPU(const float* d_fftData, int numBins) { m_points.setFFTDataGPU(d_fftData, numBins); }
 
-    // Hot-reload shaders
+    // Hot-reload shaders and kernels
     bool reloadShaders() { return m_points.reloadShaders(); }
+    bool reloadKernel() { return m_points.reloadKernel(); }
 
 private:
     LineRenderer m_lines{};

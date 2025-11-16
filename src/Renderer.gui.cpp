@@ -6,6 +6,8 @@ void Renderer::drawGui()
 {
     static float reloadMessageTimer = 0.0f;
     static bool reloadSuccess = false;
+    static float kernelReloadMessageTimer = 0.0f;
+    static bool kernelReloadSuccess = false;
 
     ImGui::Separator();
     ImGui::Text("HDR Postprocessing");
@@ -26,7 +28,7 @@ void Renderer::drawGui()
     }
 
     ImGui::Separator();
-    ImGui::Text("Shaders");
+    ImGui::Text("Shaders & Kernels");
 
     if (ImGui::Button("Reload Shaders (R)"))
     {
@@ -43,7 +45,24 @@ void Renderer::drawGui()
         }
     }
 
-    // Show reload notification
+    ImGui::SameLine();
+
+    if (ImGui::Button("Reload Kernel (K)"))
+    {
+        kernelReloadSuccess = reloadKernel();
+        kernelReloadMessageTimer = 3.0f; // Show message for 3 seconds
+
+        if (kernelReloadSuccess)
+        {
+            LOG(INFO) << "✓ CUDA kernel reloaded successfully from GUI";
+        }
+        else
+        {
+            LOG(ERROR) << "✗ Failed to reload CUDA kernel - check logs for details";
+        }
+    }
+
+    // Show shader reload notification
     if (reloadMessageTimer > 0.0f)
     {
         reloadMessageTimer -= ImGui::GetIO().DeltaTime;
@@ -55,6 +74,21 @@ void Renderer::drawGui()
         else
         {
             ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Shader reload failed! Check console.");
+        }
+    }
+
+    // Show kernel reload notification
+    if (kernelReloadMessageTimer > 0.0f)
+    {
+        kernelReloadMessageTimer -= ImGui::GetIO().DeltaTime;
+
+        if (kernelReloadSuccess)
+        {
+            ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), "CUDA kernel reloaded successfully!");
+        }
+        else
+        {
+            ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "Kernel reload failed! Check console.");
         }
     }
 }

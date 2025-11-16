@@ -60,6 +60,7 @@ target_link_libraries(indra PRIVATE
   CUDA::cudart
   CUDA::cuda_driver
   CUDA::cufft
+  CUDA::nvrtc
 )
 
 # Copy shaders directory to build output for hot-reload support
@@ -68,6 +69,14 @@ add_custom_command(TARGET indra POST_BUILD
     ${CMAKE_SOURCE_DIR}/shaders
     $<TARGET_FILE_DIR:indra>/shaders
   COMMENT "Copying shaders directory to build output"
+)
+
+# Copy kernels directory to build output for hot-reload support
+add_custom_command(TARGET indra POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/kernels
+    $<TARGET_FILE_DIR:indra>/kernels
+  COMMENT "Copying CUDA kernels directory to build output"
 )
 
 enable_testing()

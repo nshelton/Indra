@@ -3,6 +3,7 @@
 #include <iostream>
 #include <cuda_runtime.h>
 #include <cuda_gl_interop.h>
+#include <cuda.h>
 #include <glog/logging.h>
 #include "PointCloudKernel.cuh"
 
@@ -73,6 +74,26 @@ void main(){
     glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, sizeof(GLVertex), (void *)(3 * sizeof(float)));
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
+
+    // Initialize CUDA kernel with NVRTC
+    m_cudaKernel = std::make_unique<CudaKernel>();
+
+    // Try to load from source directory first, then build directory
+    bool kernelSuccess = m_cudaKernel->loadFromFile("../../kernels/pointcloud_kernel.cu", "animatePointsKernel");
+    if (!kernelSuccess)
+    {
+        kernelSuccess = m_cudaKernel->loadFromFile("kernels/pointcloud_kernel.cu", "animatePointsKernel");
+    }
+
+    if (!kernelSuccess)
+    {
+        LOG(WARNING) << "Failed to load CUDA kernel for hot-reload: " << m_cudaKernel->getLastError();
+        LOG(WARNING) << "CUDA kernel hot-reload will not be available";
+    }
+    else
+    {
+        LOG(INFO) << "CUDA kernel loaded successfully for hot-reload";
+    }
 
     LOG(INFO) << "PointCloudRenderer initialized successfully";
     return true;
@@ -241,6 +262,13 @@ void PointCloudRenderer::shutdownCudaInterop()
         m_ownsFFTData = false;
     }
 
+    // Free particle data buffer
+    if (m_d_particleData)
+    {
+        cudaFree(m_d_particleData);
+        m_d_particleData = nullptr;
+    }
+
     m_cudaInteropInitialized = false;
 }
 
@@ -265,6 +293,55 @@ bool PointCloudRenderer::runCudaKernel(float deltaTime)
     if (m_points.empty())
         return true;
 
+    // Initialize particle data buffer if needed (lazy allocation)
+    int numPoints = static_cast<int>(m_points.size());
+    if (!m_d_particleData)
+    {
+        // Allocate particle data on GPU
+        size_t particleDataSize = numPoints * sizeof(ParticleData);
+        ParticleData* d_particles = nullptr;
+        cudaError_t err = cudaMalloc(&d_particles, particleDataSize);
+        if (err != cudaSuccess)
+        {
+            std::cerr << "Failed to allocate particle data: " << cudaGetErrorString(err) << std::endl;
+            return false;
+        }
+        m_d_particleData = d_particles;
+
+        // Initialize particles with random values on CPU, then upload to GPU
+        std::vector<ParticleData> h_particles(numPoints);
+        for (int i = 0; i < numPoints; ++i)
+        {
+            // Random velocity in [-0.5, 0.5] for each axis
+            h_particles[i].vx = (rand() / float(RAND_MAX)) - 0.5f;
+            h_particles[i].vy = (rand() / float(RAND_MAX)) - 0.5f;
+            h_particles[i].vz = (rand() / float(RAND_MAX)) - 0.5f;
+
+            // Random age between 0 and 5 seconds
+            h_particles[i].maxAge = 2.0f + (rand() / float(RAND_MAX)) * 3.0f;
+            h_particles[i].age = (rand() / float(RAND_MAX)) * h_particles[i].maxAge;
+
+            // Random pressure [0, 1]
+            h_particles[i].pressure = rand() / float(RAND_MAX);
+
+            // Uniformly distributed UV coordinates in [0, 1]
+            h_particles[i].u = rand() / float(RAND_MAX);
+            h_particles[i].v = rand() / float(RAND_MAX);
+        }
+
+        // Upload to GPU
+        err = cudaMemcpy(d_particles, h_particles.data(), particleDataSize, cudaMemcpyHostToDevice);
+        if (err != cudaSuccess)
+        {
+            std::cerr << "Failed to upload particle data: " << cudaGetErrorString(err) << std::endl;
+            cudaFree(d_particles);
+            m_d_particleData = nullptr;
+            return false;
+        }
+
+        std::cout << "Initialized " << numPoints << " particles with random properties" << std::endl;
+    }
+
     // Map the OpenGL buffer to CUDA
     cudaError_t err = cudaGraphicsMapResources(1, &m_cudaVboResource, 0);
     if (err != cudaSuccess)
@@ -285,13 +362,61 @@ bool PointCloudRenderer::runCudaKernel(float deltaTime)
     }
 
     // Launch the CUDA kernel to process the vertices with FFT data
-    err = launchAnimatePointsKernel(d_vertices, static_cast<int>(m_points.size()), deltaTime,
-                                     m_d_fftData, m_numFFTBins);
-    if (err != cudaSuccess)
+    // Try to use runtime-compiled kernel if available, otherwise fall back to built-in kernel
+    if (m_cudaKernel && m_cudaKernel->isValid())
     {
-        std::cerr << "CUDA kernel launch failed: " << cudaGetErrorString(err) << std::endl;
-        cudaGraphicsUnmapResources(1, &m_cudaVboResource, 0);
-        return false;
+        // Use CUDA Driver API to launch runtime-compiled kernel
+        void* kernelArgs[] = {
+            &d_vertices,
+            &m_d_particleData,
+            &numPoints,
+            &deltaTime,
+            &m_d_fftData,
+            &m_numFFTBins
+        };
+
+        int blockSize = 256;
+        int numBlocks = (numPoints + blockSize - 1) / blockSize;
+
+        CUresult cuErr = cuLaunchKernel(
+            m_cudaKernel->getFunction(),
+            numBlocks, 1, 1,    // grid dim
+            blockSize, 1, 1,    // block dim
+            0,                   // shared mem
+            0,                   // stream
+            kernelArgs,
+            nullptr
+        );
+
+        if (cuErr != CUDA_SUCCESS)
+        {
+            const char* errorStr;
+            cuGetErrorString(cuErr, &errorStr);
+            std::cerr << "CUDA kernel launch failed (NVRTC): " << errorStr << std::endl;
+            cudaGraphicsUnmapResources(1, &m_cudaVboResource, 0);
+            return false;
+        }
+
+        // Synchronize
+        err = cudaDeviceSynchronize();
+        if (err != cudaSuccess)
+        {
+            std::cerr << "CUDA synchronize failed: " << cudaGetErrorString(err) << std::endl;
+            cudaGraphicsUnmapResources(1, &m_cudaVboResource, 0);
+            return false;
+        }
+    }
+    else
+    {
+        // Fall back to built-in kernel
+        err = launchAnimatePointsKernel(d_vertices, static_cast<ParticleData*>(m_d_particleData), numPoints, deltaTime,
+                                         m_d_fftData, m_numFFTBins);
+        if (err != cudaSuccess)
+        {
+            std::cerr << "CUDA kernel launch failed: " << cudaGetErrorString(err) << std::endl;
+            cudaGraphicsUnmapResources(1, &m_cudaVboResource, 0);
+            return false;
+        }
     }
 
     // Unmap the buffer so OpenGL can use it
@@ -324,6 +449,30 @@ bool PointCloudRenderer::reloadShaders()
     else
     {
         LOG(ERROR) << "Failed to reload PointCloud shaders: " << m_shaderProgram->getLastError();
+    }
+
+    return success;
+}
+
+bool PointCloudRenderer::reloadKernel()
+{
+    if (!m_cudaKernel)
+    {
+        LOG(WARNING) << "Cannot reload kernel: kernel not initialized";
+        return false;
+    }
+
+    LOG(INFO) << "Reloading CUDA kernel...";
+
+    bool success = m_cudaKernel->reload();
+
+    if (success)
+    {
+        LOG(INFO) << "CUDA kernel reloaded successfully!";
+    }
+    else
+    {
+        LOG(ERROR) << "Failed to reload CUDA kernel: " << m_cudaKernel->getLastError();
     }
 
     return success;
