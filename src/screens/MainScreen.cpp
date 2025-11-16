@@ -22,16 +22,6 @@ void MainScreen::onAttach(App &app)
     // Initialize renderer now that OpenGL context is ready
     m_renderer.init();
 
-    // Initialize serialization
-    std::string error_string;
-    bool loaded = serialization::loadState(m_shaderState, m_camera, m_renderer, STATE_FILE, &error_string);
-    if (!loaded) {
-        LOG(ERROR) << "Failed to load state: " << error_string;
-    }
-    else {
-        LOG(INFO) << "Loaded state from " << STATE_FILE;
-    }
-
     // // Initialize audio capture and analyzer
     // if (m_audioCapture.initialize(44100, 2)) {
     //     LOG(INFO) << "Audio capture initialized successfully";
@@ -41,13 +31,25 @@ void MainScreen::onAttach(App &app)
     //     }
     // }
 
-    // Set up automatic shader hot-reload
-    m_shaderWatcher.watch("../../shaders/raymarch.comp", [this](const std::string& path) {
-        LOG(INFO) << "Detected change in " << path << ", reloading shaders...";
-        m_renderer.reloadShaders();
-    });
+    // Watch the include directory for changes to included shader files
+    m_shaderWatcher.watchDirectory("../../shaders/", [this](const std::string &path)
+                                   {
+        LOG(INFO) << "Detected change in shader " << path << ", reloading shaders...";
+        m_renderer.reloadShaders(); }, true); // recursive = true to watch subdirectories
 
     LOG(INFO) << "Shader auto-reload enabled ";
+
+    // serialize at the end
+    std::string error_string;
+    bool loaded = serialization::loadState(m_shaderState, m_camera, m_renderer, STATE_FILE, &error_string);
+    if (!loaded)
+    {
+        LOG(ERROR) << "Failed to load state: " << error_string;
+    }
+    else
+    {
+        LOG(INFO) << "Loaded state from " << STATE_FILE;
+    }
 }
 
 void MainScreen::onResize(int width, int height)
@@ -68,7 +70,7 @@ void MainScreen::onUpdate(double dt)
     ImGuiIO &io = ImGui::GetIO();
     if (!io.WantCaptureKeyboard && ImGui::IsKeyPressed(ImGuiKey_Delete))
     {
-       // handle keypresses
+        // handle keypresses
     }
 
     // Reload shaders with R key (manual override)
@@ -92,8 +94,10 @@ void MainScreen::onUpdate(double dt)
     }
 
     // Process audio if enabled
-    if (m_audioEnabled && m_audioCapture.isCapturing()) {
-        if (m_audioCapture.getLatestAudioData(m_audioBuffer)) {
+    if (m_audioEnabled && m_audioCapture.isCapturing())
+    {
+        if (m_audioCapture.getLatestAudioData(m_audioBuffer))
+        {
             // Perform FFT analysis on the audio data
             // This computes FFT on GPU and downloads magnitudes to CPU for GUI display
             m_audioAnalyzer.analyzeStereo(m_audioBuffer, m_fftMagnitudes);
@@ -121,15 +125,16 @@ void MainScreen::onRender()
 
 void MainScreen::onDetach()
 {
-    // Clean up any resources here
-    m_renderer.shutdown();
-
-    // Save current state
+    // Save current state before shutting down
     std::string error_string;
     bool saved = serialization::saveState(m_shaderState, m_camera, m_renderer, STATE_FILE, &error_string);
-    if (!saved) {
+    if (!saved)
+    {
         LOG(ERROR) << "Failed to save state: " << error_string;
     }
+
+    // Clean up any resources here
+    m_renderer.shutdown();
 }
 
 void MainScreen::onMouseButton(int button, int action, int /*mods*/, vec2 px)

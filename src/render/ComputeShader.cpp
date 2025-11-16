@@ -126,6 +126,8 @@ bool ComputeShader::reload()
     }
 
     LOG(INFO) << "Compute shader reload successful!";
+
+    m_shaderRevisionId++;
     return true;
 }
 

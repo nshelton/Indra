@@ -4,21 +4,21 @@
 
 ShaderState::ShaderState()
 {
-    addParameter<ColorParameter>("backgroundColor", "Background Color", "uBackgroundColor", color(0.0f, 0.0f, 0.0f, 1.0f));
+    addParameter<ColorParameter>("Background Color", "Background Color", "uBackgroundColor", color(0.0f, 0.0f, 0.0f, 1.0f));
     addParameter<Vec3Parameter>("u_paramA", "u_paramA", "u_paramA", -1.0f, 1.0f, vec3(0.0f, 0.0f, 0.0f));
     addParameter<Vec3Parameter>("u_paramB", "u_paramB", "u_paramB", -1.0f, 1.0f, vec3(0.0f, 0.0f, 0.0f));
     addParameter<Vec3Parameter>("u_paramC", "u_paramC", "u_paramC", -1.0f, 1.0f, vec3(0.0f, 0.0f, 0.0f));
     addParameter<FloatParameter>("_LEVELS", "Levels", "_LEVELS", 1.0f, 10.0f, 6.0f);
 
-    addParameter<IntParameter>("maxSteps", "Max Steps", "uMaxSteps", 1, 500, 100);
-    addParameter<FloatParameter>("maxDistance", "Max Distance", "uMaxDistance", 1.0f, 1000.0f, 100.0f);
-    addParameter<FloatParameter>("surfaceEpsilon", "Surface Epsilon", "uSurfaceEpsilon", 0.0001f, 0.01f, 0.001f);
-    addParameter<FloatParameter>("stepRatio", "Step Ratio", "uStepRatio", 0.01f, 1.0f, 1.0f);
+    addParameter<IntParameter>("Max Steps", "Max Steps", "uMaxSteps", 1, 500, 100);
+    addParameter<FloatParameter>("Max Distance", "Max Distance", "uMaxDistance", 1.0f, 1000.0f, 100.0f);
+    addParameter<FloatParameter>("Surface Epsilon", "Surface Epsilon", "uSurfaceEpsilon", 0.0001f, 0.01f, 0.001f);
+    addParameter<FloatParameter>("Step Ratio", "Step Ratio", "uStepRatio", 0.01f, 1.0f, 1.0f);
 }
 
 void ShaderState::reset()
 {
-    for (auto& param : m_parameters)
+    for (auto &param : m_parameters)
     {
         param->reset();
     }
@@ -32,7 +32,7 @@ void ShaderState::drawGui()
     ImGui::Separator();
     ImGui::Text("Shader Parameters");
 
-    for (auto& param : m_parameters)
+    for (auto &param : m_parameters)
     {
         param->drawGui();
     }
@@ -44,16 +44,22 @@ void ShaderState::drawGui()
     }
 }
 
-void ShaderState::uploadUniforms(ComputeShader* shader)
+void ShaderState::uploadUniforms(ComputeShader *shader)
 {
     if (!shader || !shader->isValid())
         return;
 
+    if (shader->getShaderRevisionId() != m_associatedShaderRevisionId)
+    {
+        m_uniformLocationCache.clear(); // Invalidate old locations
+        m_associatedShaderRevisionId = shader->getShaderRevisionId();
+    }
+
     shader->use();
 
-    for (auto& param : m_parameters)
+    for (auto &param : m_parameters)
     {
-        const std::string& uniformName = param->getUniformName();
+        const std::string &uniformName = param->getUniformName();
 
         // Get or cache uniform location
         int location;
@@ -73,10 +79,10 @@ void ShaderState::uploadUniforms(ComputeShader* shader)
     }
 }
 
-void ShaderState::toJson(nlohmann::json& j) const
+void ShaderState::toJson(nlohmann::json &j) const
 {
     j = nlohmann::json::array();
-    for (const auto& param : m_parameters)
+    for (const auto &param : m_parameters)
     {
         nlohmann::json paramJson;
         param->toJson(paramJson);
@@ -84,12 +90,12 @@ void ShaderState::toJson(nlohmann::json& j) const
     }
 }
 
-void ShaderState::fromJson(const nlohmann::json& j)
+void ShaderState::fromJson(const nlohmann::json &j)
 {
-    for (const auto& paramJson : j)
+    for (const auto &paramJson : j)
     {
-        std::string uniformName = paramJson.value("uniformName", "");
-        ShaderParameter* param = getParameter(uniformName);
+        std::string displayName = paramJson.value("displayName", "");
+        ShaderParameter *param = getParameter(displayName);
         if (param)
         {
             param->fromJson(paramJson);
@@ -97,8 +103,7 @@ void ShaderState::fromJson(const nlohmann::json& j)
     }
 }
 
-
-ShaderParameter* ShaderState::getParameter(const std::string& name)
+ShaderParameter *ShaderState::getParameter(const std::string &name)
 {
     auto it = m_parameterMap.find(name);
     if (it != m_parameterMap.end())

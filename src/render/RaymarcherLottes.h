@@ -8,7 +8,7 @@
 #include "ComputeShader.h"
 #include "../ShaderState.h"
 
-class Raymarcher
+class RaymarcherLottes
 {
 public:
     bool init();

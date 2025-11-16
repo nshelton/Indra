@@ -1,4 +1,4 @@
-﻿#include "Raymarcher.h"
+﻿#include "RaymarcherLottes.h"
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -6,7 +6,7 @@
 #include <cmath>
 
 
-void Raymarcher::createOutputTexture()
+void RaymarcherLottes::createOutputTexture()
 {
     if (m_outputTexture != 0)
     {
@@ -25,16 +25,19 @@ void Raymarcher::createOutputTexture()
     LOG(INFO) << "Created output texture: " << m_viewportWidth << "x" << m_viewportHeight;
 }
 
-void Raymarcher::createAccumulationTexture()
+void RaymarcherLottes::createAccumulationTexture()
 {
     if (m_accumulationTexture != 0)
     {
         glDeleteTextures(1, &m_accumulationTexture);
     }
 
+    // Initialize texture with zeros (important for alpha channel check)
+    std::vector<float> zeros(m_viewportWidth * m_viewportHeight * 4, 0.0f);
+
     glGenTextures(1, &m_accumulationTexture);
     glBindTexture(GL_TEXTURE_2D, m_accumulationTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, m_viewportWidth, m_viewportHeight, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, m_viewportWidth, m_viewportHeight, 0, GL_RGBA, GL_FLOAT, zeros.data());
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -44,7 +47,7 @@ void Raymarcher::createAccumulationTexture()
     LOG(INFO) << "Created accumulation texture: " << m_viewportWidth << "x" << m_viewportHeight;
 }
 
-void Raymarcher::createWorkQueueBuffer()
+void RaymarcherLottes::createWorkQueueBuffer()
 {
     if (m_workQueueSSBO != 0)
     {
@@ -72,7 +75,7 @@ void Raymarcher::createWorkQueueBuffer()
               << ", L0:" << raysLevel0 << " L1:" << raysLevel1 << " L2:" << raysLevel2 << ")";
 }
 
-void Raymarcher::createDepthCacheBuffer()
+void RaymarcherLottes::createDepthCacheBuffer()
 {
     if (m_depthCacheSSBO != 0)
     {
@@ -95,11 +98,11 @@ void Raymarcher::createDepthCacheBuffer()
     LOG(INFO) << "Created depth cache SSBO (" << (bufferSize / 1024.0f / 1024.0f) << " MB)";
 }
 
-bool Raymarcher::init()
+bool RaymarcherLottes::init()
 {
     // Load compute shader from source directory for hot-reload support
     m_computeShader = std::make_unique<ComputeShader>();
-    if (!m_computeShader->loadFromFile("../../shaders/raymarch.comp"))
+    if (!m_computeShader->loadFromFile("../../shaders/raymarch_lottes.comp"))
     {
         LOG(ERROR) << "Failed to load compute shader";
         return false;
@@ -115,7 +118,7 @@ bool Raymarcher::init()
     return true;
 }
 
-void Raymarcher::shutdown()
+void RaymarcherLottes::shutdown()
 {
     m_computeShader.reset();
 
@@ -144,7 +147,7 @@ void Raymarcher::shutdown()
     }
 }
 
-void Raymarcher::setViewportSize(int width, int height)
+void RaymarcherLottes::setViewportSize(int width, int height)
 {
     if (m_viewportWidth != width || m_viewportHeight != height)
     {
@@ -161,7 +164,7 @@ void Raymarcher::setViewportSize(int width, int height)
 /// @brief Raymarch the scene to a framebuffer using a compute shader
 /// @param camera The camera to use for rendering
 /// @param shaderState The shader parameters to use for rendering
-void Raymarcher::draw(const Camera &camera, const ShaderState &shaderState)
+void RaymarcherLottes::draw(const Camera &camera, const ShaderState &shaderState)
 {
     if (!m_computeShader || !m_computeShader->isValid() || m_outputTexture == 0)
         return;
@@ -260,7 +263,7 @@ void Raymarcher::draw(const Camera &camera, const ShaderState &shaderState)
     }
 }
 
-void Raymarcher::resetAccumulation()
+void RaymarcherLottes::resetAccumulation()
 {
     // Reset work queue counter
     GLuint zero = 0;
@@ -312,7 +315,7 @@ void Raymarcher::resetAccumulation()
     LOG(INFO) << "Accumulation reset";
 }
 
-bool Raymarcher::reloadShaders()
+bool RaymarcherLottes::reloadShaders()
 {
     if (m_computeShader && !m_computeShader->getComputePath().empty())
     {

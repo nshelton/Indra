@@ -38,7 +38,7 @@ void FloatParameter::reset()
 
 void FloatParameter::toJson(nlohmann::json& j) const
 {
-    j["uniformName"] = m_uniformName;
+    j["displayName"] = m_displayName;
     j["value"] = m_value;
 }
 
@@ -73,13 +73,6 @@ void Vec3Parameter::drawGui()
     ImGui::SliderFloat3(m_displayName.c_str(), &m_value.x, m_min, m_max);
 }
 
-void Vec3Parameter::setValue(const vec3& v)
-{
-    m_value.x = std::clamp(v.x, m_min, m_max);
-    m_value.y = std::clamp(v.y, m_min, m_max);
-    m_value.z = std::clamp(v.z, m_min, m_max);
-}
-
 void Vec3Parameter::reset()
 {
     m_value = m_default;
@@ -87,7 +80,7 @@ void Vec3Parameter::reset()
 
 void Vec3Parameter::toJson(nlohmann::json& j) const
 {
-    j["uniformName"] = m_uniformName;
+    j["displayName"] = m_displayName;
     j["value"] = { m_value.x, m_value.y, m_value.z };
 }
 
@@ -134,7 +127,7 @@ void ColorParameter::reset()
 
 void ColorParameter::toJson(nlohmann::json& j) const
 {
-    j["uniformName"] = m_uniformName;
+    j["displayName"] = m_displayName;
     j["value"] = { m_value.r, m_value.g, m_value.b, m_value.a };
 }
 
@@ -184,7 +177,7 @@ void IntParameter::reset()
 
 void IntParameter::toJson(nlohmann::json& j) const
 {
-    j["uniformName"] = m_uniformName;
+    j["displayName"] = m_displayName;
     j["value"] = m_value;
 }
 

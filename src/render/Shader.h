@@ -3,6 +3,7 @@
 #include <glad/glad.h>
 #include <string>
 #include <filesystem>
+#include <set>
 
 /// @brief Base class for OpenGL shader programs
 /// Provides common functionality for shader compilation, linking, and hot-reloading
@@ -60,6 +61,15 @@ protected:
     /// @param path Path to the file
     /// @return File modification time
     std::filesystem::file_time_type getFileModTime(const std::string& path) const;
+
+    /// @brief Preprocess shader source to handle #include directives
+    /// @param source The original shader source code
+    /// @param baseDir Directory of the file being processed (for relative includes)
+    /// @param includedFiles Set of already included files (prevents circular includes)
+    /// @return Preprocessed source code with includes resolved
+    std::string preprocessIncludes(const std::string& source,
+                                   const std::filesystem::path& baseDir,
+                                   std::set<std::string>& includedFiles);
 
     GLuint m_program;
     bool m_isValid;

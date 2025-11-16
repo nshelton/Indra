@@ -33,6 +33,58 @@ void FileWatcher::watch(const std::string& path, CallbackFunc callback)
     LOG(INFO) << "FileWatcher: Now watching " << path;
 }
 
+void FileWatcher::watchDirectory(const std::string& directory, CallbackFunc callback, bool recursive)
+{
+    try
+    {
+        std::filesystem::path dirPath(directory);
+
+        if (!std::filesystem::exists(dirPath))
+        {
+            LOG(WARNING) << "FileWatcher: Directory does not exist: " << directory;
+            return;
+        }
+
+        if (!std::filesystem::is_directory(dirPath))
+        {
+            LOG(WARNING) << "FileWatcher: Path is not a directory: " << directory;
+            return;
+        }
+
+        int fileCount = 0;
+
+        if (recursive)
+        {
+            for (const auto& entry : std::filesystem::recursive_directory_iterator(dirPath))
+            {
+                if (entry.is_regular_file())
+                {
+                    watch(entry.path().string(), callback);
+                    fileCount++;
+                }
+            }
+        }
+        else
+        {
+            for (const auto& entry : std::filesystem::directory_iterator(dirPath))
+            {
+                if (entry.is_regular_file())
+                {
+                    watch(entry.path().string(), callback);
+                    fileCount++;
+                }
+            }
+        }
+
+        LOG(INFO) << "FileWatcher: Now watching " << fileCount << " files in " << directory
+                  << (recursive ? " (recursive)" : "");
+    }
+    catch (const std::filesystem::filesystem_error& e)
+    {
+        LOG(ERROR) << "FileWatcher: Error watching directory " << directory << ": " << e.what();
+    }
+}
+
 void FileWatcher::unwatch(const std::string& path)
 {
     auto it = m_watchedFiles.find(path);

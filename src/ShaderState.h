@@ -6,7 +6,6 @@
 #include <memory>
 #include <unordered_map>
 #include <string>
-#include <nlohmann/json.hpp>
 
 // Forward declaration
 class ComputeShader;
@@ -44,6 +43,7 @@ public:
     }
 
 private:
+    int m_associatedShaderRevisionId = -1;
     // All shader parameters stored polymorphically
     std::vector<std::unique_ptr<ShaderParameter>> m_parameters;
 

@@ -13,7 +13,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 set(CMAKE_CUDA_SEPARABLE_COMPILATION ON)
-set(CMAKE_CUDA_ARCHITECTURES "75;86;89" CACHE STRING "CUDA architectures")
+set(CMAKE_CUDA_ARCHITECTURES "86" CACHE STRING "CUDA architectures")
 
 find_package(glfw3 CONFIG REQUIRED)
 find_package(glad CONFIG REQUIRED)
@@ -49,6 +49,16 @@ target_compile_definitions(indra PRIVATE NOMINMAX)
 target_include_directories(indra PRIVATE
   src
   ${CUDAToolkit_INCLUDE_DIRS}
+)
+
+target_precompile_headers(indra PRIVATE
+  <glad/glad.h>
+  <glog/logging.h>
+  <nlohmann/json.hpp>
+  <imgui.h>
+  <memory>
+  <vector>
+  <string>
 )
 
 target_link_libraries(indra PRIVATE

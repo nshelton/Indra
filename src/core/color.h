@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+// Color stores floats but in the range [0,1] for RGBA components
 struct color
 {
     float r, g, b, a;

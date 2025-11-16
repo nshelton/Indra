@@ -39,7 +39,7 @@ public:
     float getAspect() const { return m_aspect; }
 
     // Draw camera info GUI
-    void drawGui() const;
+    void drawGui();
 
     void toJson(nlohmann::json& j) const
     {

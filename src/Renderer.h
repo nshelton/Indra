@@ -2,7 +2,7 @@
 
 #include "core/Core.h"
 #include "render/LineRenderer.h"
-#include "render/Raymarcher.h"
+#include "render/RaymarcherSimple.h"
 #include "render/Framebuffer.h"
 #include "render/PostProcessor.h"
 #include "render/TextureBlit.h"
@@ -10,7 +10,6 @@
 #include "Camera.h"
 #include "ShaderState.h"
 
-#include <glog/logging.h>
 #include <memory>
 
 class Renderer
@@ -21,26 +20,7 @@ public:
     /// @brief Initialize OpenGL resources - must be called after OpenGL context is ready
     void init();
 
-    void setSize(int width, int height)
-    {
-        LOG(INFO) << "GL size set to " << width << "x" << height;
-        m_width = width;
-        m_height = height;
-
-        m_raymarcher.setViewportSize(width, height);
-
-        if (m_hdrFramebuffer && m_hdrFramebuffer->getFBO() != 0) {
-            m_hdrFramebuffer->resize(width, height);
-        } else if (m_width > 0 && m_height > 0) {
-            // First time initialization
-            m_hdrFramebuffer->createHDR(m_width, m_height);
-            m_postProcessor->init(m_width, m_height);
-        }
-
-        if (m_postProcessor && m_width > 0 && m_height > 0) {
-            m_postProcessor->resize(width, height);
-        }
-    }
+    void setSize(int width, int height);
 
     void render(const Camera &camera, const ShaderState &shaderState, const InteractionState &uiState);
     void shutdown();
@@ -83,7 +63,7 @@ private:
     bool m_initialized{false};
 
     LineRenderer m_lines{};
-    Raymarcher m_raymarcher{};
+    RaymarcherSimple m_raymarcher{};
     float m_time{0.0f};
 
     // HDR rendering
@@ -91,9 +71,4 @@ private:
     std::unique_ptr<PostProcessor> m_postProcessor;
     int m_width{0};
     int m_height{0};
-
-    // Hierarchical raymarching - camera tracking
-    matrix4 m_previousViewMatrix;
-    vec3 m_previousCameraPosition;
-    int m_frameCount{0};
 };

@@ -96,10 +96,7 @@ namespace serialization
 
         state.fromJson(j["shaderState"]);
         camera.fromJson(j["camera"]);
-        if (j.contains("renderer"))
-        {
-            renderer.fromJson(j["renderer"]);
-        }
+        renderer.fromJson(j["renderer"]);
 
         return true;
     }

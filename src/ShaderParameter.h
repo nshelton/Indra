@@ -66,7 +66,6 @@ public:
     void reset() override;
     void toJson(nlohmann::json& j) const override;
     void fromJson(const nlohmann::json& j) override;
-
     const vec3& getValue() const { return m_value; }
     void setValue(const vec3& v);
 

@@ -18,6 +18,10 @@ public:
     // Add a file to watch with a callback
     void watch(const std::string& path, CallbackFunc callback);
 
+    // Add all files in a directory to watch with a callback
+    // If recursive is true, watches subdirectories as well
+    void watchDirectory(const std::string& directory, CallbackFunc callback, bool recursive = false);
+
     // Remove a file from watching
     void unwatch(const std::string& path);
 

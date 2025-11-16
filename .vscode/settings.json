@@ -1,4 +1,5 @@
 {
+  "gslang.glslangValidatorPath": "C:\\Users\\nick\\Downloads\\glslang-master-windows-Release\\bin\\glslangValidator.exe"
   "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
   "cmake.configureOnOpen": true,
   "cmake.configurePreset": "msvc-vcpkg",

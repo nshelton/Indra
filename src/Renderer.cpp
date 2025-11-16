@@ -19,14 +19,41 @@ void Renderer::init()
    m_initialized = true;
 }
 
+void Renderer::setSize(int width, int height)
+{
+   LOG(INFO) << "GL size set to " << width << "x" << height;
+   m_width = width;
+   m_height = height;
+
+   m_raymarcher.setViewportSize(width, height);
+
+   if (m_hdrFramebuffer && m_hdrFramebuffer->getFBO() != 0)
+   {
+      m_hdrFramebuffer->resize(width, height);
+   }
+   else if (m_width > 0 && m_height > 0)
+   {
+      // First time initialization
+      m_hdrFramebuffer->createHDR(m_width, m_height);
+      m_postProcessor->init(m_width, m_height);
+   }
+
+   if (m_postProcessor && m_width > 0 && m_height > 0)
+   {
+      m_postProcessor->resize(width, height);
+   }
+}
+
 void Renderer::render(const Camera &camera, const ShaderState &shaderState, const InteractionState &uiState)
 {
-   if (!m_initialized) {
+   if (!m_initialized)
+   {
       LOG(WARNING) << "Renderer not initialized, call init() first";
       return;
    }
 
-   if (!m_hdrFramebuffer || m_hdrFramebuffer->getFBO() == 0) {
+   if (!m_hdrFramebuffer || m_hdrFramebuffer->getFBO() == 0)
+   {
       LOG(WARNING) << "HDR framebuffer not ready, call setSize() first";
       return;
    }
@@ -40,67 +67,27 @@ void Renderer::render(const Camera &camera, const ShaderState &shaderState, cons
    glClearColor(0.f, 0.f, 0.f, 1.0f);
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-   m_time += 0.016f;  // Increment animation time (~60 FPS)
+   m_time += 0.016f; // Increment animation time (~60 FPS)
 
    // Draw ground plane grid
    vec3 gridCenter(0, 0, 0);
    float gridSize = 20.0f;
    int gridDivisions = 10;
-   color gridColor(0.3f, 0.3f, 0.3f, 1.0f);    // Dark gray for grid lines
-   color centerColor(0.5f, 0.5f, 0.5f, 1.0f);  // Lighter gray for center lines
+   color gridColor(0.3f, 0.3f, 0.3f, 1.0f);   // Dark gray for grid lines
+   color centerColor(0.5f, 0.5f, 0.5f, 1.0f); // Lighter gray for center lines
    m_lines.addGrid(gridCenter, gridSize, gridDivisions, gridColor, centerColor);
 
    // Draw 3D axis lines for reference (above the grid)
    float axisLength = 50.0f;
-   m_lines.addLine(vec3(0, 0.1f, 0), vec3(axisLength, 0.1f, 0), color(1, 0, 0, 1)); // X axis - Red
-   m_lines.addLine(vec3(0, 0.1f, 0), vec3(0, axisLength, 0.1f), color(0, 1, 0, 1)); // Y axis - Green
-   m_lines.addLine(vec3(0, 0.1f, 0), vec3(0, 0.1f, axisLength), color(0, 0, 1, 1)); // Z axis - Blue
+   m_lines.addLine(vec3(0, 0, 0), vec3(axisLength, 0, 0), color(1, 0, 0, 1)); // X axis - Red
+   m_lines.addLine(vec3(0, 0, 0), vec3(0, axisLength, 0), color(0, 1, 0, 1)); // Y axis - Green
+   m_lines.addLine(vec3(0, 0, 0), vec3(0, 0, axisLength), color(0, 0, 1, 1)); // Z axis - Blue
 
    // Render lines (for debug/UI elements)
    m_lines.draw(camera);
 
-   // Detect camera changes for hierarchical raymarching
-   matrix4 currentViewMatrix = camera.getViewMatrix();
-   vec3 currentCameraPosition = camera.getPosition();
-
-   // Initialize previous position on first frame
-   static bool firstFrame = true;
-   if (firstFrame)
-   {
-      m_previousViewMatrix = currentViewMatrix;
-      m_previousCameraPosition = currentCameraPosition;
-      firstFrame = false;
-   }
-
-   // Check if camera moved (compare position with small epsilon)
-   vec3 posDiff = currentCameraPosition - m_previousCameraPosition;
-   float posChangeSquared = posDiff.x * posDiff.x + posDiff.y * posDiff.y + posDiff.z * posDiff.z;
-   bool cameraChanged = (posChangeSquared > 0.0001f * 0.0001f);
-
-   if (cameraChanged)
-   {
-      // Camera moved - reset accumulation
-      m_raymarcher.resetAccumulation();
-      m_frameCount = 0;
-      m_previousViewMatrix = currentViewMatrix;
-      m_previousCameraPosition = currentCameraPosition;
-
-      LOG(INFO) << "Camera changed - reset accumulation";
-   }
-
-   // Set frame number for temporal accumulation
-   m_raymarcher.setFrameNumber(m_frameCount);
-   m_raymarcher.setCameraChanged(cameraChanged);
-
-   // Raymarch to texture (doesn't draw to framebuffer directly)
+      // Raymarch to texture (doesn't draw to framebuffer directly)
    m_raymarcher.draw(camera, shaderState);
-
-   // Increment frame counter (for temporal accumulation when static)
-   if (!cameraChanged)
-   {
-      m_frameCount++;
-   }
-
    // Blit raymarcher output to HDR framebuffer
    TextureBlit::blit(m_raymarcher.getOutputTexture());
 

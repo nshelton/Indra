@@ -50,10 +50,13 @@ public:
     /// @param sizeZ Output for work group size in Z dimension
     void getWorkGroupSize(GLint& sizeX, GLint& sizeY, GLint& sizeZ) const;
 
+    int getShaderRevisionId() const { return m_shaderRevisionId; }
+
 private:
     std::string m_computePath;
     std::filesystem::file_time_type m_computeModTime;
 
+    int m_shaderRevisionId = 0;
     // Fallback source (if file can't be loaded)
     std::string m_fallbackComputeSource;
 

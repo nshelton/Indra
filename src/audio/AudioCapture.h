@@ -1,10 +1,10 @@
 #pragma once
 
-#include "miniaudio.h"
 #include <vector>
 #include <atomic>
 #include <mutex>
 #include <functional>
+#include <memory>
 
 class AudioCapture {
 public:
@@ -33,12 +33,14 @@ public:
     unsigned int getChannels() const { return m_channels; }
 
 private:
-    ma_device m_device;
-    ma_device_config m_deviceConfig;
+    // PIMPL idiom to hide miniaudio types
+    struct Impl;
+    std::unique_ptr<Impl> m_impl;
 
     unsigned int m_sampleRate;
     unsigned int m_channels;
     std::atomic<bool> m_isCapturing;
+    std::atomic<bool> m_hasInitialized;
 
     // Simple fixed buffer for latest audio chunk
     std::vector<float> m_audioBuffer;
@@ -47,9 +49,6 @@ private:
     // Optional callback
     std::function<void(const float* data, unsigned int frameCount)> m_audioCallback;
 
-    // Static callback for miniaudio
-    static void dataCallback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount);
-
-    // Instance callback
-    void onAudioData(const float* pInput, ma_uint32 frameCount);
+    // Instance callback (called from miniaudio callback in Impl)
+    void onAudioData(const float* pInput, unsigned int frameCount);
 };
