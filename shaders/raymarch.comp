@@ -135,16 +135,18 @@ vec2 mapScene(vec3 p)
     return tglad(p);
 }
 
-float raymarch(vec3 ro, vec3 rd)
+// returns depth, iterations, and orbit
+vec3 raymarch(vec3 ro, vec3 rd)
 {
     float depth = 0.0;
     for (int i = 0; i < uMaxSteps; ++i)
     {
         vec3 pos = ro + rd * depth;
-        float dist = mapScene(pos).x;
+        vec2 df_result = mapScene(pos);
+        float dist = df_result.x;
         if (dist < uSurfaceEpsilon)
         {
-            return depth;
+            return vec3(depth, float(i), df_result.y);
         }
         depth += dist * uStepRatio;
         if (depth >= uMaxDistance)
@@ -152,7 +154,7 @@ float raymarch(vec3 ro, vec3 rd)
             break;
         }
     }
-    return -1.0;
+    return vec3(-1.0, float(uMaxSteps), 1);
 }
 
 
@@ -210,16 +212,16 @@ void main()
         -ndcY * uTanHalfFov * uCameraUp
     );
 
-    float hit = raymarch(uCameraPos, rayDir);
+    vec3 march_result = raymarch(uCameraPos, rayDir);
     vec3 color = uBackgroundColor;
-
+    float hit = march_result.x;
     if (hit > 0.0)
     {
         vec3 hitPos = uCameraPos + rayDir * hit;
         vec3 normal = estimateNormal(hitPos);
         vec3 lightDir = normalize(vec3(0.4, 0.8, 0.2));
         float diffuse = max(dot(normal, lightDir), 0.0);
-        vec3 baseColor = palette(mapScene(hitPos).y );
+        vec3 baseColor = vec3(1 - march_result.y / float(uMaxSteps));
         color = baseColor * diffuse + baseColor * 0.1;
     }
 
