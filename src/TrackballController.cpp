@@ -164,3 +164,36 @@ void TrackballController::zoom(Camera& camera, float delta)
     camera.setPosition(target + direction * newDistance);
     camera.setTarget(target);
 }
+
+void TrackballController::moveKeyboard(Camera& camera, float deltaTime,
+                                       bool forward, bool back, bool left, bool right, bool down, bool up)
+{
+    // Calculate movement direction
+    vec3 moveDirection(0.0f, 0.0f, 0.0f);
+
+    if (forward) moveDirection = moveDirection + camera.getForward();
+    if (back) moveDirection = moveDirection - camera.getForward();
+    if (left) moveDirection = moveDirection - camera.getRight();
+    if (right) moveDirection = moveDirection + camera.getRight();
+    if (down) moveDirection = moveDirection - camera.getUp();
+    if (up) moveDirection = moveDirection + camera.getUp();
+
+    // Early exit if no movement
+    if (moveDirection.length() < 0.001f)
+        return;
+
+    // Calculate distance from camera to target for zoom-based scaling
+    vec3 position = camera.getPosition();
+    vec3 target = camera.getTarget();
+    vec3 offset = position - target;
+    float distance = offset.length();
+
+    // Scale movement speed based on distance (similar to pan and zoom)
+    // Using a smaller multiplier for more controlled movement
+    float scaledSpeed = m_keyboardSpeed * distance * deltaTime;
+
+    // Apply movement
+    moveDirection = moveDirection.normalized() * scaledSpeed;
+    camera.setPosition(position + moveDirection);
+    camera.setTarget(target + moveDirection);
+}

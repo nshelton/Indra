@@ -13,7 +13,7 @@ ShaderState::ShaderState()
     addParameter<IntParameter>("maxSteps", "Max Steps", "uMaxSteps", 1, 500, 100);
     addParameter<FloatParameter>("maxDistance", "Max Distance", "uMaxDistance", 1.0f, 1000.0f, 100.0f);
     addParameter<FloatParameter>("surfaceEpsilon", "Surface Epsilon", "uSurfaceEpsilon", 0.0001f, 0.01f, 0.001f);
-
+    addParameter<FloatParameter>("stepRatio", "Step Ratio", "uStepRatio", 0.01f, 1.0f, 1.0f);
 }
 
 void ShaderState::reset()

@@ -55,6 +55,22 @@ public:
     float getBloomStrength() const { return m_postProcessor ? m_postProcessor->getBloomStrength() : 0.04f; }
     float getGrainAmount() const { return m_postProcessor ? m_postProcessor->getGrainAmount() : 0.02f; }
 
+    void fromJson(const nlohmann::json &j)
+    {
+        m_lines.setLineWidth(j.value("lineWidth", 1.0f));
+        m_postProcessor->setExposure(j.value("exposure", 1.0f));
+        m_postProcessor->setBloomStrength(j.value("bloomStrength", 0.04f));
+        m_postProcessor->setGrainAmount(j.value("grainAmount", 0.02f));
+    }
+
+    void toJson(nlohmann::json &j) const
+    {
+        j["lineWidth"] = m_lines.lineWidth();
+        j["exposure"] = getExposure();
+        j["bloomStrength"] = getBloomStrength();
+        j["grainAmount"] = getGrainAmount();
+    }
+
     // Audio reactivity
 
     // Hot-reload shaders and kernels

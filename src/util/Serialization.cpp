@@ -54,6 +54,7 @@ namespace serialization
 
         state.toJson(j["shaderState"]);
         camera.toJson(j["camera"]);
+        renderer.toJson(j["renderer"]);
 
         std::ofstream file(filePath);
         if (!file.is_open())
@@ -95,6 +96,10 @@ namespace serialization
 
         state.fromJson(j["shaderState"]);
         camera.fromJson(j["camera"]);
+        if (j.contains("renderer"))
+        {
+            renderer.fromJson(j["renderer"]);
+        }
 
         return true;
     }

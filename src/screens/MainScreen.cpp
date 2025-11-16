@@ -78,6 +78,20 @@ void MainScreen::onUpdate(double dt)
         m_renderer.reloadShaders();
     }
 
+    // WASD camera movement (flythrough style)
+    if (!io.WantCaptureKeyboard)
+    {
+        bool forward = ImGui::IsKeyDown(ImGuiKey_W);
+        bool back = ImGui::IsKeyDown(ImGuiKey_S);
+        bool left = ImGui::IsKeyDown(ImGuiKey_A);
+        bool right = ImGui::IsKeyDown(ImGuiKey_D);
+        bool down = ImGui::IsKeyDown(ImGuiKey_Q);
+        bool up = ImGui::IsKeyDown(ImGuiKey_E);
+
+        m_interaction.moveKeyboard(m_camera, static_cast<float>(dt),
+                                   forward, back, left, right, down, up);
+    }
+
     // Process audio if enabled
     if (m_audioEnabled && m_audioCapture.isCapturing()) {
         if (m_audioCapture.getLatestAudioData(m_audioBuffer)) {

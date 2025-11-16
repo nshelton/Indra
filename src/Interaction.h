@@ -40,6 +40,13 @@ public:
     void onCursorPos(ShaderState &shaderState, Camera &camera, const vec2 &px);
     void onScroll(ShaderState &shaderState, Camera &camera, float yoffset, const vec2 &px);
 
+    // Keyboard movement
+    void moveKeyboard(Camera &camera, float deltaTime,
+                      bool forward, bool back, bool left, bool right, bool down, bool up)
+    {
+        m_trackball.moveKeyboard(camera, deltaTime, forward, back, left, right, down, up);
+    }
+
     const InteractionState &state() const { return m_state; }
 
     std::optional<int> HoveredEntity() const { return m_state.hoveredId; }
