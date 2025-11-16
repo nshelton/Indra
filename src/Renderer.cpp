@@ -40,12 +40,11 @@ void Renderer::render(const Camera &camera, const ShaderState &shaderState, cons
    glClearColor(0.f, 0.f, 0.f, 1.0f);
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-   // Run CUDA kernel to animate/process points on GPU (before drawing)
    m_time += 0.016f;  // Increment animation time (~60 FPS)
 
    // Draw ground plane grid
    vec3 gridCenter(0, 0, 0);
-   float gridSize = 200.0f;
+   float gridSize = 20.0f;
    int gridDivisions = 10;
    color gridColor(0.3f, 0.3f, 0.3f, 1.0f);    // Dark gray for grid lines
    color centerColor(0.5f, 0.5f, 0.5f, 1.0f);  // Lighter gray for center lines

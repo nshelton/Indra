@@ -3,6 +3,7 @@
 #include "core/core.h"
 #include <string>
 #include <memory>
+#include <nlohmann/json.hpp>
 
 // Forward declaration
 class ComputeShader;
@@ -25,6 +26,9 @@ public:
     const std::string& getUniformName() const { return m_uniformName; }
     const std::string& getDisplayName() const { return m_displayName; }
 
+    virtual void toJson(nlohmann::json& j) const;
+    virtual void fromJson(const nlohmann::json& j);
+
 protected:
     std::string m_uniformName;
     std::string m_displayName;
@@ -42,7 +46,8 @@ public:
 
     float getValue() const { return m_value; }
     void setValue(float v) { m_value = clamp(v, m_min, m_max); }
-
+    void toJson(nlohmann::json& j) const override;
+    void fromJson(const nlohmann::json& j) override;
 private:
     float m_value;
     float m_default;
@@ -59,6 +64,8 @@ public:
     void uploadUniform(ComputeShader* shader, int location) const override;
     void drawGui() override;
     void reset() override;
+    void toJson(nlohmann::json& j) const override;
+    void fromJson(const nlohmann::json& j) override;
 
     const vec3& getValue() const { return m_value; }
     void setValue(const vec3& v);
@@ -74,18 +81,19 @@ private:
 class ColorParameter : public ShaderParameter
 {
 public:
-    ColorParameter(const char* displayName, const char* uniformName, const vec3& defaultVal);
+    ColorParameter(const char* displayName, const char* uniformName, const color& defaultVal);
 
     void uploadUniform(ComputeShader* shader, int location) const override;
     void drawGui() override;
     void reset() override;
-
-    const vec3& getValue() const { return m_value; }
-    void setValue(const vec3& v) { m_value = v; }
+    void toJson(nlohmann::json& j) const override;
+    void fromJson(const nlohmann::json& j) override;
+    const color& getValue() const { return m_value; }
+    void setValue(const color& v) { m_value = v; }
 
 private:
-    vec3 m_value;
-    vec3 m_default;
+    color m_value;
+    color m_default;
 };
 
 /// @brief Integer parameter with slider
@@ -97,7 +105,8 @@ public:
     void uploadUniform(ComputeShader* shader, int location) const override;
     void drawGui() override;
     void reset() override;
-
+    void toJson(nlohmann::json& j) const override;
+    void fromJson(const nlohmann::json& j) override;
     int getValue() const { return m_value; }
     void setValue(int v) { m_value = clamp(v, m_min, m_max); }
 

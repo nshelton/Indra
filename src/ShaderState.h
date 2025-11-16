@@ -6,6 +6,7 @@
 #include <memory>
 #include <unordered_map>
 #include <string>
+#include <nlohmann/json.hpp>
 
 // Forward declaration
 class ComputeShader;
@@ -25,6 +26,12 @@ public:
 
     /// @brief Upload all parameters to the compute shader
     void uploadUniforms(ComputeShader* shader);
+
+    /// @brief Serialize to JSON
+    void toJson(nlohmann::json& j) const;
+
+    /// @brief Deserialize from JSON
+    void fromJson(const nlohmann::json& j);
 
     /// @brief Get a parameter by name (returns nullptr if not found)
     ShaderParameter* getParameter(const std::string& name);

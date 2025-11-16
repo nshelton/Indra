@@ -3,6 +3,7 @@
 #include <glad/glad.h>
 #include <core/core.h>
 #include <cmath>
+#include <nlohmann/json.hpp>
 
 struct Camera
 {
@@ -39,6 +40,39 @@ public:
 
     // Draw camera info GUI
     void drawGui() const;
+
+    void toJson(nlohmann::json& j) const
+    {
+        j["position"] = { m_position.x, m_position.y, m_position.z };
+        j["target"] = { m_target.x, m_target.y, m_target.z };
+        j["up"] = { m_up.x, m_up.y, m_up.z };
+        j["fov"] = m_fov;
+        j["aspect"] = m_aspect;
+        j["near"] = m_near;
+        j["far"] = m_far;
+    };
+
+    void fromJson(const nlohmann::json& j) {
+        auto pos = j.value("position", std::vector<float>{0.0f, 0.0f, 0.0f});
+        if (pos.size() == 3) {
+            m_position = vec3(pos[0], pos[1], pos[2]);
+        }
+        auto tgt = j.value("target", std::vector<float>{0.0f, 0.0f, -1.0f});
+        if (tgt.size() == 3) {
+            m_target = vec3(tgt[0], tgt[1], tgt[2]);
+        }
+        auto upv = j.value("up", std::vector<float>{0.0f, 1.0f, 0.0f});
+        if (upv.size() == 3) {
+            m_up = vec3(upv[0], upv[1], upv[2]);
+        }
+        m_fov = j.value("fov", 60.0f);
+        m_aspect = j.value("aspect", 1.77778f);
+        m_near = j.value("near", 0.1f);
+        m_far = j.value("far", 1000.0f);
+        m_viewDirty = true;
+        m_projectionDirty = true;
+        updateViewMatrix();
+    }
 
 private:
     void updateViewMatrix();

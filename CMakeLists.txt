@@ -21,6 +21,7 @@ find_package(imgui CONFIG REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(glog CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
+find_package(nlohmann_json CONFIG REQUIRED)
 
 # Find CUDA Toolkit
 find_package(CUDAToolkit REQUIRED)
@@ -61,6 +62,7 @@ target_link_libraries(indra PRIVATE
   CUDA::cuda_driver
   CUDA::cufft
   CUDA::nvrtc
+  nlohmann_json::nlohmann_json
 )
 
 # Copy shaders directory to build output for hot-reload support

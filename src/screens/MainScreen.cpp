@@ -6,6 +6,9 @@
 #include <sstream>
 #include <glog/logging.h>
 #include <core/core.h>
+#include <util/Serialization.h>
+
+static const char* STATE_FILE = "project_state.json";
 
 void MainScreen::onAttach(App &app)
 {
@@ -14,10 +17,13 @@ void MainScreen::onAttach(App &app)
 
     m_app = &app;
     m_shaderState.reset();
-    m_camera = Camera(vec3(100.0f, 100.0f, 100.0f), vec3(0.0f, 0.0f, 0.0f));
+    m_camera = Camera(vec3(10.0f, 10.0f, 10.0f), vec3(0.0f, 0.0f, 0.0f));
 
     // Initialize renderer now that OpenGL context is ready
     m_renderer.init();
+
+    // Initialize serialization
+    serialization::loadState(m_shaderState, m_camera, m_renderer, STATE_FILE);
 
     // // Initialize audio capture and analyzer
     // if (m_audioCapture.initialize(44100, 2)) {
@@ -96,6 +102,9 @@ void MainScreen::onDetach()
 {
     m_renderer.shutdown();
     // Clean up any resources here
+
+    // Save current state
+    serialization::saveState(m_shaderState, m_camera, m_renderer, STATE_FILE);
 }
 
 void MainScreen::onMouseButton(int button, int action, int /*mods*/, vec2 px)
