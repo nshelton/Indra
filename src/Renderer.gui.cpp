@@ -22,11 +22,6 @@ void Renderer::drawGui()
         setBloomStrength(bloomStrength);
     }
 
-    float grainAmount = getGrainAmount();
-    if (ImGui::SliderFloat("Grain", &grainAmount, 0.0f, 0.1f)) {
-        setGrainAmount(grainAmount);
-    }
-
     ImGui::Separator();
     ImGui::Text("Shader");
 

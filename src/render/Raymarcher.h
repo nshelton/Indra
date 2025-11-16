@@ -43,9 +43,27 @@ public:
         }
     }
 
+    /// @brief Reset accumulation buffer (call when camera moves)
+    void resetAccumulation();
+
+    /// @brief Set frame number for temporal variation
+    void setFrameNumber(int frame) { m_frameNumber = frame; }
+
+    /// @brief Set camera changed flag
+    void setCameraChanged(bool changed) { m_cameraChanged = changed; }
+
+    /// @brief Get accumulation texture
+    GLuint getAccumulationTexture() const { return m_accumulationTexture; }
+
+    /// @brief Notify that shader parameters changed (triggers reset)
+    void notifyParametersChanged() { resetAccumulation(); }
+
 private:
     // Helper functions
     void createOutputTexture();
+    void createAccumulationTexture();
+    void createWorkQueueBuffer();
+    void createDepthCacheBuffer();
 
     // Compute shader for raymarching
     std::unique_ptr<ComputeShader> m_computeShader;
@@ -53,8 +71,23 @@ private:
     // Output texture that the compute shader writes to
     GLuint m_outputTexture{0};
 
+    // Accumulation texture for temporal refinement
+    GLuint m_accumulationTexture{0};
+
+    // Work queue SSBO (atomic counter + total rays)
+    GLuint m_workQueueSSBO{0};
+
+    // Depth cache SSBO (breadcrumbs from parent rays)
+    GLuint m_depthCacheSSBO{0};
+
     // Viewport dimensions
     int m_viewportWidth{1920};
     int m_viewportHeight{1080};
+
+    // Hierarchical raymarching parameters
+    int m_frameNumber{0};
+    bool m_cameraChanged{true};
+    int m_iterationBudget{10000000};  // Total iterations per frame (10M for progressive refinement)
+    int m_iterationsPerThread{512};   // Iterations per thread
 };
 

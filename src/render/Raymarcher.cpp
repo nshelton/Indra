@@ -25,6 +25,76 @@ void Raymarcher::createOutputTexture()
     LOG(INFO) << "Created output texture: " << m_viewportWidth << "x" << m_viewportHeight;
 }
 
+void Raymarcher::createAccumulationTexture()
+{
+    if (m_accumulationTexture != 0)
+    {
+        glDeleteTextures(1, &m_accumulationTexture);
+    }
+
+    glGenTextures(1, &m_accumulationTexture);
+    glBindTexture(GL_TEXTURE_2D, m_accumulationTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, m_viewportWidth, m_viewportHeight, 0, GL_RGBA, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    LOG(INFO) << "Created accumulation texture: " << m_viewportWidth << "x" << m_viewportHeight;
+}
+
+void Raymarcher::createWorkQueueBuffer()
+{
+    if (m_workQueueSSBO != 0)
+    {
+        glDeleteBuffers(1, &m_workQueueSSBO);
+    }
+
+    // Work queue contains: [currentRayIndex, totalRays]
+    // Total rays includes all pyramid levels:
+    // Level 0: (w/4)*(h/4) coarse pixels
+    // Level 1: (w/2)*(h/2) medium pixels
+    // Level 2: w*h ALL pixels (full coverage)
+    GLuint raysLevel0 = (m_viewportWidth / 4) * (m_viewportHeight / 4);
+    GLuint raysLevel1 = (m_viewportWidth / 2) * (m_viewportHeight / 2);
+    GLuint raysLevel2 = m_viewportWidth * m_viewportHeight;
+    GLuint totalRays = raysLevel0 + raysLevel1 + raysLevel2;
+
+    GLuint workQueueData[2] = {0, totalRays};
+
+    glGenBuffers(1, &m_workQueueSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_workQueueSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(workQueueData), workQueueData, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    LOG(INFO) << "Created work queue SSBO (totalRays: " << totalRays
+              << ", L0:" << raysLevel0 << " L1:" << raysLevel1 << " L2:" << raysLevel2 << ")";
+}
+
+void Raymarcher::createDepthCacheBuffer()
+{
+    if (m_depthCacheSSBO != 0)
+    {
+        glDeleteBuffers(1, &m_depthCacheSSBO);
+    }
+
+    // Depth cache stores one float per RAY (not per pixel!)
+    // Need to store depths for ALL pyramid levels
+    GLuint raysLevel0 = (m_viewportWidth / 4) * (m_viewportHeight / 4);
+    GLuint raysLevel1 = (m_viewportWidth / 2) * (m_viewportHeight / 2);
+    GLuint raysLevel2 = m_viewportWidth * m_viewportHeight;
+    GLuint totalRays = raysLevel0 + raysLevel1 + raysLevel2;
+    size_t bufferSize = totalRays * sizeof(float);
+
+    glGenBuffers(1, &m_depthCacheSSBO);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_depthCacheSSBO);
+    glBufferData(GL_SHADER_STORAGE_BUFFER, bufferSize, nullptr, GL_DYNAMIC_DRAW);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    LOG(INFO) << "Created depth cache SSBO (" << (bufferSize / 1024.0f / 1024.0f) << " MB)";
+}
+
 bool Raymarcher::init()
 {
     // Load compute shader from source directory for hot-reload support
@@ -35,8 +105,11 @@ bool Raymarcher::init()
         return false;
     }
 
-    // Create output texture
+    // Create textures and buffers
     createOutputTexture();
+    createAccumulationTexture();
+    createWorkQueueBuffer();
+    createDepthCacheBuffer();
 
     LOG(INFO) << "Raymarcher initialized successfully";
     return true;
@@ -51,6 +124,24 @@ void Raymarcher::shutdown()
         glDeleteTextures(1, &m_outputTexture);
         m_outputTexture = 0;
     }
+
+    if (m_accumulationTexture != 0)
+    {
+        glDeleteTextures(1, &m_accumulationTexture);
+        m_accumulationTexture = 0;
+    }
+
+    if (m_workQueueSSBO != 0)
+    {
+        glDeleteBuffers(1, &m_workQueueSSBO);
+        m_workQueueSSBO = 0;
+    }
+
+    if (m_depthCacheSSBO != 0)
+    {
+        glDeleteBuffers(1, &m_depthCacheSSBO);
+        m_depthCacheSSBO = 0;
+    }
 }
 
 void Raymarcher::setViewportSize(int width, int height)
@@ -60,6 +151,10 @@ void Raymarcher::setViewportSize(int width, int height)
         m_viewportWidth = width;
         m_viewportHeight = height;
         createOutputTexture();
+        createAccumulationTexture();
+        createWorkQueueBuffer();
+        createDepthCacheBuffer();
+        resetAccumulation();  // Reset when viewport changes
     }
 }
 
@@ -71,11 +166,26 @@ void Raymarcher::draw(const Camera &camera, const ShaderState &shaderState)
     if (!m_computeShader || !m_computeShader->isValid() || m_outputTexture == 0)
         return;
 
+    // Only reset work queue counter if camera changed
+    // Otherwise continue from where we left off (progressive refinement)
+    if (m_cameraChanged)
+    {
+        GLuint zero = 0;
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_workQueueSSBO);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(GLuint), &zero);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    }
+
     // Bind the compute shader
     m_computeShader->use();
 
-    // Bind output texture for writing
+    // Bind textures
     glBindImageTexture(0, m_outputTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+    glBindImageTexture(1, m_accumulationTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_RGBA16F);
+
+    // Bind SSBOs
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_workQueueSSBO);
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, m_depthCacheSSBO);
 
     // Upload camera uniforms
     vec3 cameraPos = camera.getPosition();
@@ -103,13 +213,103 @@ void Raymarcher::draw(const Camera &camera, const ShaderState &shaderState)
     glUniform1i(m_computeShader->getUniformLocation("uViewportWidth"), m_viewportWidth);
     glUniform1i(m_computeShader->getUniformLocation("uViewportHeight"), m_viewportHeight);
 
-    // Dispatch compute shader
-    int workGroupsX = (m_viewportWidth + 15) / 16;
-    int workGroupsY = (m_viewportHeight + 15) / 16;
-    m_computeShader->dispatch(workGroupsX, workGroupsY, 1);
+    // Upload hierarchical raymarching parameters
+    glUniform1i(m_computeShader->getUniformLocation("uIterationsPerThread"), m_iterationsPerThread);
+    glUniform1i(m_computeShader->getUniformLocation("uFrameNumber"), m_frameNumber);
+    glUniform1i(m_computeShader->getUniformLocation("uCameraChanged"), m_cameraChanged ? 1 : 0);
+    glUniform1i(m_computeShader->getUniformLocation("uPyramidLevels"), 3);  // 3 levels: coarse, medium, fine
+
+    // Dispatch compute shader with 1D workgroups
+    // Calculate number of threads needed based on iteration budget
+    int numThreads = m_iterationBudget / m_iterationsPerThread;
+    int workGroupsX = (numThreads + 255) / 256;  // 256 threads per workgroup
+    m_computeShader->dispatch(workGroupsX, 1, 1);
 
     // Wait for compute shader to finish
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL_SHADER_STORAGE_BARRIER_BIT);
+
+    // Debug: Read back progress
+    GLuint rayProgress;
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_workQueueSSBO);
+    glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(GLuint), &rayProgress);
+    glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+    // Calculate actual total rays (all pyramid levels)
+    GLuint raysLevel0 = (m_viewportWidth / 4) * (m_viewportHeight / 4);
+    GLuint raysLevel1 = (m_viewportWidth / 2) * (m_viewportHeight / 2);
+    GLuint raysLevel2 = m_viewportWidth * m_viewportHeight;
+    GLuint totalRays = raysLevel0 + raysLevel1 + raysLevel2;
+    float percentComplete = (float)rayProgress / (float)totalRays * 100.0f;
+
+    // Log every frame for debugging, or reduce frequency later
+    if (rayProgress < totalRays)
+    {
+        LOG(INFO) << "Frame " << m_frameNumber
+                  << ": Progressive refinement - " << rayProgress << "/" << totalRays
+                  << " rays (" << percentComplete << "%)";
+    }
+    else if (m_frameNumber == 0)
+    {
+        LOG(INFO) << "Frame completed in single pass! (" << rayProgress << " rays)";
+    }
+
+    // After first frame, camera is no longer considered "changed"
+    if (m_cameraChanged)
+    {
+        m_cameraChanged = false;
+    }
+}
+
+void Raymarcher::resetAccumulation()
+{
+    // Reset work queue counter
+    GLuint zero = 0;
+    if (m_workQueueSSBO != 0)
+    {
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_workQueueSSBO);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(GLuint), &zero);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    }
+
+    // Clear output texture to black - makes progressive refinement visible
+    if (m_outputTexture != 0)
+    {
+        std::vector<float> zeros(m_viewportWidth * m_viewportHeight * 4, 0.0f);
+        glBindTexture(GL_TEXTURE_2D, m_outputTexture);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_viewportWidth, m_viewportHeight,
+                        GL_RGBA, GL_FLOAT, zeros.data());
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    // Clear accumulation texture
+    if (m_accumulationTexture != 0)
+    {
+        std::vector<float> zeros(m_viewportWidth * m_viewportHeight * 4, 0.0f);
+        glBindTexture(GL_TEXTURE_2D, m_accumulationTexture);
+        glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_viewportWidth, m_viewportHeight,
+                        GL_RGBA, GL_FLOAT, zeros.data());
+        glBindTexture(GL_TEXTURE_2D, 0);
+    }
+
+    // Clear depth cache (for ALL rays, not just pixels!)
+    if (m_depthCacheSSBO != 0)
+    {
+        GLuint raysLevel0 = (m_viewportWidth / 4) * (m_viewportHeight / 4);
+        GLuint raysLevel1 = (m_viewportWidth / 2) * (m_viewportHeight / 2);
+        GLuint raysLevel2 = m_viewportWidth * m_viewportHeight;
+        GLuint totalRays = raysLevel0 + raysLevel1 + raysLevel2;
+        size_t bufferSize = totalRays * sizeof(float);
+        std::vector<float> zeros(totalRays, 0.0f);
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_depthCacheSSBO);
+        glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, bufferSize, zeros.data());
+        glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+    }
+
+    // Reset frame counter
+    m_frameNumber = 0;
+    m_cameraChanged = true;
+
+    LOG(INFO) << "Accumulation reset";
 }
 
 bool Raymarcher::reloadShaders()

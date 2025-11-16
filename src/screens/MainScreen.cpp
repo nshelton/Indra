@@ -32,7 +32,6 @@ void MainScreen::onAttach(App &app)
         LOG(INFO) << "Loaded state from " << STATE_FILE;
     }
 
-
     // // Initialize audio capture and analyzer
     // if (m_audioCapture.initialize(44100, 2)) {
     //     LOG(INFO) << "Audio capture initialized successfully";

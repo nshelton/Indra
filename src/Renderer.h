@@ -49,18 +49,15 @@ public:
     // HDR postprocessing controls
     void setExposure(float exposure) { if (m_postProcessor) m_postProcessor->setExposure(exposure); }
     void setBloomStrength(float strength) { if (m_postProcessor) m_postProcessor->setBloomStrength(strength); }
-    void setGrainAmount(float amount) { if (m_postProcessor) m_postProcessor->setGrainAmount(amount); }
 
     float getExposure() const { return m_postProcessor ? m_postProcessor->getExposure() : 1.0f; }
     float getBloomStrength() const { return m_postProcessor ? m_postProcessor->getBloomStrength() : 0.04f; }
-    float getGrainAmount() const { return m_postProcessor ? m_postProcessor->getGrainAmount() : 0.02f; }
 
     void fromJson(const nlohmann::json &j)
     {
         m_lines.setLineWidth(j.value("lineWidth", 1.0f));
         m_postProcessor->setExposure(j.value("exposure", 1.0f));
         m_postProcessor->setBloomStrength(j.value("bloomStrength", 0.04f));
-        m_postProcessor->setGrainAmount(j.value("grainAmount", 0.02f));
     }
 
     void toJson(nlohmann::json &j) const
@@ -68,7 +65,6 @@ public:
         j["lineWidth"] = m_lines.lineWidth();
         j["exposure"] = getExposure();
         j["bloomStrength"] = getBloomStrength();
-        j["grainAmount"] = getGrainAmount();
     }
 
     // Audio reactivity
@@ -95,4 +91,9 @@ private:
     std::unique_ptr<PostProcessor> m_postProcessor;
     int m_width{0};
     int m_height{0};
+
+    // Hierarchical raymarching - camera tracking
+    matrix4 m_previousViewMatrix;
+    vec3 m_previousCameraPosition;
+    int m_frameCount{0};
 };

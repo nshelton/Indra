@@ -22,16 +22,13 @@ public:
     // Individual effect controls
     void setExposure(float exposure) { m_exposure = exposure; }
     void setBloomStrength(float strength) { m_bloomStrength = strength; }
-    void setGrainAmount(float amount) { m_grainAmount = amount; }
 
     float getExposure() const { return m_exposure; }
     float getBloomStrength() const { return m_bloomStrength; }
-    float getGrainAmount() const { return m_grainAmount; }
 
 private:
     void setupQuad();
     void createShaders();
-    void generateBlueNoise();
     void renderQuad();
 
     // Shaders
@@ -48,13 +45,9 @@ private:
     GLuint m_quadVAO = 0;
     GLuint m_quadVBO = 0;
 
-    // Blue noise texture for film grain
-    GLuint m_blueNoiseTex = 0;
-
     // Effect parameters
     float m_exposure = 1.0f;
     float m_bloomStrength = 0.04f;
-    float m_grainAmount = 0.02f;
     float m_time = 0.0f;
 
     int m_width = 0;

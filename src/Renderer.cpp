@@ -59,8 +59,47 @@ void Renderer::render(const Camera &camera, const ShaderState &shaderState, cons
    // Render lines (for debug/UI elements)
    m_lines.draw(camera);
 
+   // Detect camera changes for hierarchical raymarching
+   matrix4 currentViewMatrix = camera.getViewMatrix();
+   vec3 currentCameraPosition = camera.getPosition();
+
+   // Initialize previous position on first frame
+   static bool firstFrame = true;
+   if (firstFrame)
+   {
+      m_previousViewMatrix = currentViewMatrix;
+      m_previousCameraPosition = currentCameraPosition;
+      firstFrame = false;
+   }
+
+   // Check if camera moved (compare position with small epsilon)
+   vec3 posDiff = currentCameraPosition - m_previousCameraPosition;
+   float posChangeSquared = posDiff.x * posDiff.x + posDiff.y * posDiff.y + posDiff.z * posDiff.z;
+   bool cameraChanged = (posChangeSquared > 0.0001f * 0.0001f);
+
+   if (cameraChanged)
+   {
+      // Camera moved - reset accumulation
+      m_raymarcher.resetAccumulation();
+      m_frameCount = 0;
+      m_previousViewMatrix = currentViewMatrix;
+      m_previousCameraPosition = currentCameraPosition;
+
+      LOG(INFO) << "Camera changed - reset accumulation";
+   }
+
+   // Set frame number for temporal accumulation
+   m_raymarcher.setFrameNumber(m_frameCount);
+   m_raymarcher.setCameraChanged(cameraChanged);
+
    // Raymarch to texture (doesn't draw to framebuffer directly)
    m_raymarcher.draw(camera, shaderState);
+
+   // Increment frame counter (for temporal accumulation when static)
+   if (!cameraChanged)
+   {
+      m_frameCount++;
+   }
 
    // Blit raymarcher output to HDR framebuffer
    TextureBlit::blit(m_raymarcher.getOutputTexture());
@@ -68,7 +107,7 @@ void Renderer::render(const Camera &camera, const ShaderState &shaderState, cons
    // Unbind HDR framebuffer
    m_hdrFramebuffer->unbind();
 
-   // Apply HDR postprocessing (bloom, noise grain, tone mapping) to screen
+   // Apply HDR postprocessing (bloom, tone mapping) to screen
    m_postProcessor->process(m_hdrFramebuffer->getColorTexture());
 }
 

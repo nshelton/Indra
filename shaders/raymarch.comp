@@ -1,8 +1,104 @@
 #version 450 core
 
-layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+layout(local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
 
+// ============================================================================
+// Space-Filling Curve Functions (for hierarchical ray ordering)
+// ============================================================================
+
+// Z-order (Morton) curve - fast bitwise interleaving
+uint part1By1(uint x) {
+    x &= 0x0000ffffu;
+    x = (x ^ (x << 8)) & 0x00ff00ffu;
+    x = (x ^ (x << 4)) & 0x0f0f0f0fu;
+    x = (x ^ (x << 2)) & 0x33333333u;
+    x = (x ^ (x << 1)) & 0x55555555u;
+    return x;
+}
+
+uint unpart1By1(uint x) {
+    x &= 0x55555555u;
+    x = (x ^ (x >> 1)) & 0x33333333u;
+    x = (x ^ (x >> 2)) & 0x0f0f0f0fu;
+    x = (x ^ (x >> 4)) & 0x00ff00ffu;
+    x = (x ^ (x >> 8)) & 0x0000ffffu;
+    return x;
+}
+
+uint xy2morton(uint x, uint y) {
+    return part1By1(x) | (part1By1(y) << 1);
+}
+
+uvec2 morton2xy(uint m) {
+    return uvec2(unpart1By1(m), unpart1By1(m >> 1));
+}
+
+// Hilbert curve - better spatial locality
+void rot(uint n, inout uint x, inout uint y, uint rx, uint ry) {
+    if (ry == 0u) {
+        if (rx == 1u) {
+            x = n - 1u - x;
+            y = n - 1u - y;
+        }
+        uint t = x;
+        x = y;
+        y = t;
+    }
+}
+
+uint xy2hilbert(uint x, uint y, uint n) {
+    uint rx, ry, d = 0u;
+    uint s = n / 2u;
+    while (s > 0u) {
+        rx = (x & s) > 0u ? 1u : 0u;
+        ry = (y & s) > 0u ? 1u : 0u;
+        d += s * s * ((3u * rx) ^ ry);
+        rot(n, x, y, rx, ry);
+        s = s / 2u;
+    }
+    return d;
+}
+
+uvec2 hilbert2xy(uint d, uint n) {
+    uint rx, ry, t = d;
+    uint x = 0u, y = 0u;
+    uint s = 1u;
+    while (s < n) {
+        rx = 1u & (t / 2u);
+        ry = 1u & (t ^ rx);
+        rot(s, x, y, rx, ry);
+        x += s * rx;
+        y += s * ry;
+        t = t / 4u;
+        s = s * 2u;
+    }
+    return uvec2(x, y);
+}
+
+// ============================================================================
+// Buffers and Textures
+// ============================================================================
+
+// Output images
 layout(rgba16f, binding = 0) writeonly uniform image2D uOutputImage;
+layout(rgba16f, binding = 1) uniform image2D uAccumulationImage;
+
+// Work queue SSBO (shared atomic counter)
+layout(std430, binding = 0) buffer WorkQueue {
+    uint currentRayIndex;  // Atomically incremented
+    uint totalRays;        // Total number of rays to trace
+};
+
+// Depth cache SSBO (breadcrumbs from parent cones)
+layout(std430, binding = 1) buffer DepthCache {
+    float depths[];  // Indexed by ray index
+};
+
+// ============================================================================
+// Uniforms
+// ============================================================================
+
+// Camera
 uniform vec3 uCameraPos;
 uniform vec3 uCameraForward;
 uniform vec3 uCameraRight;
@@ -10,23 +106,135 @@ uniform vec3 uCameraUp;
 uniform float uTanHalfFov;
 uniform float uAspect;
 
+// Scene
 uniform vec3 uSphereCenter;
 uniform float uSphereRadius;
 uniform vec3 uBackgroundColor;
 
+// Viewport
 uniform int uViewportWidth;
 uniform int uViewportHeight;
+
+// Raymarching parameters
 uniform int uMaxSteps;
 uniform float uMaxDistance;
 uniform float uSurfaceEpsilon;
+uniform float uStepRatio;
 
+// Hierarchical raymarching parameters
+uniform int uIterationsPerThread;  // Iteration budget per thread
+uniform int uFrameNumber;          // For temporal variation
+uniform bool uCameraChanged;       // Reset accumulation flag
+uniform int uPyramidLevels;        // Number of hierarchy levels (default 3)
+
+// Fractal parameters
 uniform vec4 u_paramA;
 uniform vec4 u_paramB;
 uniform vec4 u_paramC;
-
 uniform float _LEVELS;
-uniform float uStepRatio;
 
+// ============================================================================
+// Hierarchical Ray Ordering
+// ============================================================================
+
+// Find next power of 2
+uint nextPow2(uint x) {
+    uint n = 1u;
+    while (n < x) {
+        n = n * 2u;
+    }
+    return n;
+}
+
+// Compute pixel coordinate from hierarchical ray index
+// Level 0: 1/16th of pixels (every 4x4 block centers)
+// Level 1: 1/4th of pixels (every 2x2 block centers)
+// Level 2: All pixels (full resolution)
+// Uses simple scan-line order for guaranteed rectangular coverage
+ivec2 computeHierarchicalPixel(uint rayIndex) {
+    uint width = uint(uViewportWidth);
+    uint height = uint(uViewportHeight);
+
+    // Calculate number of rays per level
+    uint raysPerLevel0 = (width / 4u) * (height / 4u);
+    uint raysPerLevel1 = (width / 2u) * (height / 2u);
+    uint raysPerLevel2 = width * height;
+
+    ivec2 pixel;
+
+    if (rayIndex < raysPerLevel0) {
+        // Level 0: Coarse (every 4x4 block) - scan-line order
+        uint coarseWidth = width / 4u;
+        uint coarseHeight = height / 4u;
+
+        uint coarseX = rayIndex % coarseWidth;
+        uint coarseY = rayIndex / coarseWidth;
+
+        pixel = ivec2(coarseX * 4u + 2u, coarseY * 4u + 2u);  // Center of 4x4 block
+    }
+    else if (rayIndex < raysPerLevel0 + raysPerLevel1) {
+        // Level 1: Medium (every 2x2 block) - scan-line order
+        uint mediumIndex = rayIndex - raysPerLevel0;
+        uint mediumWidth = width / 2u;
+        uint mediumHeight = height / 2u;
+
+        uint mediumX = mediumIndex % mediumWidth;
+        uint mediumY = mediumIndex / mediumWidth;
+
+        pixel = ivec2(mediumX * 2u + 1u, mediumY * 2u + 1u);  // Center of 2x2 block
+    }
+    else {
+        // Level 2: Fine (all pixels) - scan-line order
+        uint fineIndex = rayIndex - raysPerLevel0 - raysPerLevel1;
+
+        uint fineX = fineIndex % width;
+        uint fineY = fineIndex / width;
+
+        pixel = ivec2(fineX, fineY);
+    }
+
+    return pixel;
+}
+
+// Get parent ray index for breadcrumb lookup
+// Maps pixel coordinates to parent blocks using scan-line order
+uint getParentIndex(uint rayIndex, ivec2 pixel) {
+    uint width = uint(uViewportWidth);
+    uint height = uint(uViewportHeight);
+
+    uint raysPerLevel0 = (width / 4u) * (height / 4u);
+    uint raysPerLevel1 = (width / 2u) * (height / 2u);
+
+    if (rayIndex < raysPerLevel0) {
+        // Level 0 has no parent
+        return 0xFFFFFFFFu;
+    }
+    else if (rayIndex < raysPerLevel0 + raysPerLevel1) {
+        // Level 1's parent is in level 0
+        // Find which 4x4 block this pixel belongs to
+        uint parentX = uint(pixel.x) / 4u;
+        uint parentY = uint(pixel.y) / 4u;
+        uint coarseWidth = width / 4u;
+
+        // Convert parent coordinates to ray index via scan-line order
+        return parentY * coarseWidth + parentX;
+    }
+    else {
+        // Level 2's parent is in level 1
+        // Find which 2x2 block this pixel belongs to
+        uint parentX = uint(pixel.x) / 2u;
+        uint parentY = uint(pixel.y) / 2u;
+        uint mediumWidth = width / 2u;
+
+        // Convert parent coordinates to ray index via scan-line order
+        uint parentInLevel1 = parentY * mediumWidth + parentX;
+        return raysPerLevel0 + parentInLevel1;
+    }
+}
+
+// ============================================================================
+// Distance Functions
+// ============================================================================
 
 // vec2 pseudo_knightyan(vec3 p)
 // {
@@ -193,37 +401,145 @@ vec3 estimateNormal(vec3 p)
     );
 }
 
-void main()
-{
-    uvec2 gid = gl_GlobalInvocationID.xy;
-    if (gid.x >= uint(uViewportWidth) || gid.y >= uint(uViewportHeight))
-    {
-        return;
-    }
+// ============================================================================
+// Ray Generation
+// ============================================================================
 
+vec3 computeRayDirection(ivec2 pixel) {
     vec2 resolution = vec2(float(uViewportWidth), float(uViewportHeight));
-    vec2 uv = (vec2(gid) + vec2(0.5)) / resolution;
+    vec2 uv = (vec2(pixel) + vec2(0.5)) / resolution;
     float ndcX = uv.x * 2.0 - 1.0;
     float ndcY = 1.0 - uv.y * 2.0;
 
-    vec3 rayDir = normalize(
+    return normalize(
         uCameraForward +
         ndcX * uTanHalfFov * uAspect * uCameraRight +
         -ndcY * uTanHalfFov * uCameraUp
     );
+}
 
-    vec3 march_result = raymarch(uCameraPos, rayDir);
-    vec3 color = uBackgroundColor;
-    float hit = march_result.x;
-    if (hit > 0.0)
-    {
-        vec3 hitPos = uCameraPos + rayDir * hit;
-        vec3 normal = estimateNormal(hitPos);
-        vec3 lightDir = normalize(vec3(0.4, 0.8, 0.2));
-        float diffuse = max(dot(normal, lightDir), 0.0);
-        vec3 baseColor = vec3(1 - march_result.y / float(uMaxSteps));
-        color = baseColor * diffuse + baseColor * 0.1;
+// ============================================================================
+// Shading
+// ============================================================================
+
+vec3 shade(vec3 hitPos, float orbit) {
+    vec3 normal = estimateNormal(hitPos);
+    vec3 lightDir = normalize(vec3(0.4, 0.8, 0.2));
+    float diffuse = max(dot(normal, lightDir), 0.0);
+    vec3 baseColor = palette(orbit);
+    return baseColor * diffuse + baseColor * 0.1;
+}
+
+// ============================================================================
+// Hierarchical Raymarcher Main
+// ============================================================================
+
+void main()
+{
+    uint threadId = gl_GlobalInvocationID.x;
+
+    // Each thread has an iteration budget
+    int iterationsRemaining = uIterationsPerThread;
+
+    // Work queue loop - keep marching rays until budget exhausted
+    while (iterationsRemaining > 0) {
+        // Atomically grab next ray from queue
+        uint rayIdx = atomicAdd(currentRayIndex, 1);
+
+        // Check if all rays complete
+        if (rayIdx >= totalRays) {
+            return;  // No more rays, thread exits
+        }
+
+        // Compute pixel from hierarchical ray index
+        ivec2 pixel = computeHierarchicalPixel(rayIdx);
+
+        // Check for out-of-bounds pixels (from Hilbert curve padding)
+        if (pixel.x < 0 || pixel.y < 0 ||
+            pixel.x >= uViewportWidth || pixel.y >= uViewportHeight) {
+            continue;  // Skip this ray
+        }
+
+        // Generate ray for this pixel
+        vec3 rayDir = computeRayDirection(pixel);
+        vec3 rayOrigin = uCameraPos;
+        float depth = 0.0;
+
+        // Check for parent breadcrumb
+        uint parentIdx = getParentIndex(rayIdx, pixel);
+        uint width = uint(uViewportWidth);
+        uint height = uint(uViewportHeight);
+        uint raysPerLevel0 = (width / 4u) * (height / 4u);
+
+        // Only use breadcrumb if parent exists and has been processed
+        if (parentIdx != 0xFFFFFFFFu &&
+            parentIdx < totalRays &&
+            ((rayIdx >= raysPerLevel0 && parentIdx < raysPerLevel0) ||  // Level 1 reading Level 0
+             (rayIdx >= raysPerLevel0 + (width/2u)*(height/2u) && parentIdx < raysPerLevel0 + (width/2u)*(height/2u)))) { // Level 2 reading Level 1
+            float parentDepth = depths[parentIdx];
+            if (parentDepth > 0.0) {
+                // Parent hit something - start slightly before parent's depth
+                // (small negative offset accounts for surface approximation error)
+                depth = 0.0;
+                float startDepth = max(0.0, parentDepth - 0.1);
+                rayOrigin = uCameraPos + rayDir * startDepth;
+            }
+        }
+
+        // Raymarch this ray for limited iterations
+        bool hitSurface = false;
+        float orbit = 0.0;
+        int maxItersForRay = min(uMaxSteps, iterationsRemaining);
+
+        int i = 0;
+        while (i < maxItersForRay) {
+            vec3 pos = rayOrigin + rayDir * depth;
+            vec3 df_result = mapScene(pos);
+            float dist = df_result.x;
+            orbit = df_result.y;
+
+            iterationsRemaining--;
+            i++;
+
+            if (dist < uSurfaceEpsilon) {
+                hitSurface = true;
+                break;
+            }
+
+            depth += dist * uStepRatio;
+
+            if (depth >= uMaxDistance) {
+                break;  // Ray escaped
+            }
+        }
+
+        // Compute color for this ray
+        vec3 color;
+        if (hitSurface) {
+            vec3 hitPos = uCameraPos + rayDir * depth;
+            color = shade(hitPos, orbit);
+            depths[rayIdx] = depth;  // Leave breadcrumb
+        } else {
+            color = uBackgroundColor;
+            depths[rayIdx] = -1.0;  // Mark as miss
+        }
+
+        // Temporal accumulation
+        if (uCameraChanged) {
+            // Camera moved - write fresh sample
+            imageStore(uOutputImage, pixel, vec4(color, 1.0));
+            imageStore(uAccumulationImage, pixel, vec4(color, 1.0));
+        } else {
+            // Camera static - accumulate
+            vec4 prevColor = imageLoad(uAccumulationImage, pixel);
+            float n = float(uFrameNumber);
+            vec4 accumulated = (prevColor * n + vec4(color, 1.0)) / (n + 1.0);
+
+            imageStore(uOutputImage, pixel, accumulated);
+            imageStore(uAccumulationImage, pixel, accumulated);
+        }
     }
 
-    imageStore(uOutputImage, ivec2(gid), vec4(color, 1.0));
+    // Iteration budget exhausted - thread exits
+    // Some rays may still be unprocessed (will appear in next frame)
 }
