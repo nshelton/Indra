@@ -16,12 +16,12 @@ ComputeShader::~ComputeShader()
     }
 }
 
-void ComputeShader::setFallbackSource(const std::string& computeSource)
+void ComputeShader::setFallbackSource(const std::string &computeSource)
 {
     m_fallbackComputeSource = computeSource;
 }
 
-bool ComputeShader::loadFromFile(const std::string& computePath)
+bool ComputeShader::loadFromFile(const std::string &computePath)
 {
     m_computePath = computePath;
 
@@ -46,7 +46,7 @@ bool ComputeShader::loadFromFile(const std::string& computePath)
     return loadFromSource(computeSource.c_str());
 }
 
-bool ComputeShader::loadFromSource(const char* computeSource)
+bool ComputeShader::loadFromSource(const char *computeSource)
 {
     // Create shader
     GLuint computeShader = glCreateShader(GL_COMPUTE_SHADER);
@@ -104,7 +104,7 @@ bool ComputeShader::reload()
     bool oldValid = m_isValid;
 
     // Try to reload
-    m_program = 0;  // Temporarily clear so loadFromFile creates a new one
+    m_program = 0; // Temporarily clear so loadFromFile creates a new one
     bool success = loadFromFile(m_computePath);
 
     if (!success)
@@ -128,6 +128,7 @@ bool ComputeShader::reload()
     LOG(INFO) << "Compute shader reload successful!";
 
     m_shaderRevisionId++;
+    m_uniformLocationCache.clear();
     return true;
 }
 
@@ -175,7 +176,7 @@ void ComputeShader::dispatch(GLuint groupsX, GLuint groupsY, GLuint groupsZ)
     m_currentQuery = prevQueryIndex;
 }
 
-void ComputeShader::getWorkGroupSize(GLint& sizeX, GLint& sizeY, GLint& sizeZ) const
+void ComputeShader::getWorkGroupSize(GLint &sizeX, GLint &sizeY, GLint &sizeZ) const
 {
     if (m_isValid && m_program != 0)
     {

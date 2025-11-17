@@ -18,8 +18,9 @@ FloatParameter::FloatParameter(const char* displayName, const char* uniformName,
     m_uniformName = uniformName;
 }
 
-void FloatParameter::uploadUniform(ComputeShader* shader, int location) const
+void FloatParameter::uploadUniform(ComputeShader* shader) const
 {
+    int location = shader->getUniformLocationCached(m_uniformName.c_str());
     if (location >= 0)
     {
         glUniform1f(location, m_value);
@@ -60,8 +61,9 @@ Vec3Parameter::Vec3Parameter(const char* displayName, const char* uniformName, f
     m_uniformName = uniformName;
 }
 
-void Vec3Parameter::uploadUniform(ComputeShader* shader, int location) const
+void Vec3Parameter::uploadUniform(ComputeShader* shader) const
 {
+    int location = shader->getUniformLocationCached(m_uniformName.c_str());
     if (location >= 0)
     {
         glUniform3f(location, m_value.x, m_value.y, m_value.z);
@@ -107,8 +109,9 @@ ColorParameter::ColorParameter(const char* displayName, const char* uniformName,
     m_uniformName = uniformName;
 }
 
-void ColorParameter::uploadUniform(ComputeShader* shader, int location) const
+void ColorParameter::uploadUniform(ComputeShader* shader) const
 {
+    int location = shader->getUniformLocationCached(m_uniformName.c_str());
     if (location >= 0)
     {
         glUniform4f(location, m_value.r, m_value.g, m_value.b, m_value.a);
@@ -157,8 +160,9 @@ IntParameter::IntParameter(const char* displayName, const char* uniformName, int
     m_uniformName = uniformName;
 }
 
-void IntParameter::uploadUniform(ComputeShader* shader, int location) const
+void IntParameter::uploadUniform(ComputeShader* shader) const
 {
+    int location = shader->getUniformLocationCached(m_uniformName.c_str());
     if (location >= 0)
     {
         glUniform1i(location, m_value);

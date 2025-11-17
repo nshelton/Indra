@@ -50,9 +50,6 @@ private:
     // Fast lookup by name
     std::unordered_map<std::string, ShaderParameter*> m_parameterMap;
 
-    // Cache for uniform locations (uniform name -> location)
-    std::unordered_map<std::string, int> m_uniformLocationCache;
-
     /// @brief Helper to add a parameter
     template<typename T, typename... Args>
     T* addParameter(const std::string& name, Args&&... args)

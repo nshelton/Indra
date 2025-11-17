@@ -23,9 +23,6 @@ void ShaderState::reset()
     {
         param->reset();
     }
-
-    // Clear uniform cache since we're starting fresh
-    m_uniformLocationCache.clear();
 }
 
 void ShaderState::drawGui()
@@ -50,33 +47,10 @@ void ShaderState::uploadUniforms(ComputeShader *shader)
     if (!shader || !shader->isValid())
         return;
 
-    if (shader->getShaderRevisionId() != m_associatedShaderRevisionId)
-    {
-        m_uniformLocationCache.clear(); // Invalidate old locations
-        m_associatedShaderRevisionId = shader->getShaderRevisionId();
-    }
-
     shader->use();
-
     for (auto &param : m_parameters)
     {
-        const std::string &uniformName = param->getUniformName();
-
-        // Get or cache uniform location
-        int location;
-        auto it = m_uniformLocationCache.find(uniformName);
-        if (it != m_uniformLocationCache.end())
-        {
-            location = it->second;
-        }
-        else
-        {
-            location = shader->getUniformLocation(uniformName.c_str());
-            m_uniformLocationCache[uniformName] = location;
-        }
-
-        // Let the parameter upload itself
-        param->uploadUniform(shader, location);
+        param->uploadUniform(shader);
     }
 }
 

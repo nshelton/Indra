@@ -49,6 +49,8 @@ vec2 tglad(vec3 z0)
 {
     // z0 = modc(z0, 2.0);
 
+    float limit = u_paramB.x * 10;
+
     float mr = 0.25, mxr = 1.0;
     vec4 scale = vec4(-3.12, -3.12, -3.12, 3.12), p0 = u_paramA.xyzz;
     vec4 z = vec4(z0, 1.0);
@@ -58,7 +60,7 @@ vec2 tglad(vec3 z0)
     {
         vec3 start = z.xyz;
 
-        z.xyz = clamp(z.xyz, -u_paramB * 3.0, u_paramB * 3.0) * 2.0 - z.xyz;
+        z.xyz = clamp(z.xyz, -limit, limit) * 2.0 - z.xyz;
         z *= scale / clamp(dot(z.xyz, z.xyz), mr, mxr);
         z += p0;
         orbit += length(start - z.xyz);
