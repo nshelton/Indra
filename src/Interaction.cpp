@@ -4,12 +4,9 @@
 #include "Camera.h"
 #include "core/core.h"
 #include <glog/logging.h>
+#include <imgui.h>
 #include <cmath>
 
-void InteractionController::updateHover(const ShaderState &shaderState, const Camera &camera, const vec2 &mouseWorld)
-{
-    // TODO: Implement hover detection for scene entities
-}
 
 void InteractionController::onMouseDown(ShaderState &shaderState, Camera &camera, const vec2 &px)
 {
@@ -47,5 +44,14 @@ void InteractionController::onScroll(ShaderState &shaderState, Camera &camera, f
 void InteractionController::onMouseUp()
 {
     m_state.mode = InteractionMode::None;
+}
+
+void InteractionController::drawGUI()
+{
+   ImGui::Text("Interaction Settings");
+   ImGui::SliderFloat("Rotate Speed", m_trackball.rotateSpeed(), 0.01f, 10.0f);
+   ImGui::SliderFloat("Pan Speed", m_trackball.panSpeed(), 0.01f, 10.0f);
+   ImGui::SliderFloat("Zoom Speed", m_trackball.zoomSpeed(), 0.1f, 0.5f);
+   ImGui::SliderFloat("Keyboard Speed", m_trackball.keyboardSpeed(), 0.1f, 0.5f);
 }
 

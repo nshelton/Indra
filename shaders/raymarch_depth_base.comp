@@ -46,23 +46,13 @@ uniform int uLevel;
 #include "include/palette.glsl"
 #include "include/distance.glsl"
 
-vec2 sphere_sd (vec3 p, float s)
-{
-    return vec2(length(p) - s, 0.0);
-}
-
-vec2 mapScene(vec3 p)
-{
-    return tglad(p);
-}
-
 // ============================================================================
 // Ray Generation
 // ============================================================================
 
 vec3 computeRayDirection(ivec2 pixel, ivec2 resolution) {
     vec2 uv = (vec2(pixel) + vec2(0.5)) / vec2(resolution);
-    uv += (uSeed4.xy - 0.5f) * 0.0001;
+    // uv += 0.5 * (uSeed4.xy - 0.5f) / vec2(resolution);
     float ndcX = uv.x * 2.0 - 1.0;
     float ndcY = 1.0 - uv.y * 2.0;
 
@@ -98,7 +88,7 @@ void main()
     {
         // Read previous level depth (nearest neighbor upsampling)
         ivec2 parentPixel = pixel / 2;
-        float parentDepth = imageLoad(uPreviousLevel, parentPixel).r;
+        float parentDepth = imageLoad(uPreviousLevel, parentPixel).r * 0.99;
         depth = parentDepth;
     }
 

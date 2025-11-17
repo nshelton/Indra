@@ -32,10 +32,11 @@ public:
     void setMinDistance(float dist) { m_minDistance = dist; }
     void setMaxDistance(float dist) { m_maxDistance = dist; }
 
-    float rotateSpeed() const { return m_rotateSpeed; }
-    float panSpeed() const { return m_panSpeed; }
-    float zoomSpeed() const { return m_zoomSpeed; }
-    float keyboardSpeed() const { return m_keyboardSpeed; }
+    float* rotateSpeed() { return &m_rotateSpeed; }
+    float* panSpeed() { return &m_panSpeed; }
+    float* zoomSpeed() { return &m_zoomSpeed; }
+    float* keyboardSpeed() { return &m_keyboardSpeed; }
+    
 
 private:
     // Project a 2D screen point onto a 3D sphere for trackball rotation

@@ -49,15 +49,7 @@ public:
 
     const InteractionState &state() const { return m_state; }
 
-    std::optional<int> HoveredEntity() const { return m_state.hoveredId; }
-    std::optional<int> SelectedEntity() const { return m_state.activeId; }
-
-    void SelectEntity(int id) { m_state.activeId = id; }
-    void ClearHover() { m_state.hoveredId.reset(); }
-    void DeselectEntity() { m_state.activeId.reset(); }
-
-    bool ShowPathNodes() const { return m_state.showPathNodes; }
-    void SetShowPathNodes(bool v) { m_state.showPathNodes = v; }
+    void drawGUI();
 
 private:
     InteractionState m_state;
