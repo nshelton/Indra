@@ -40,7 +40,7 @@ uniform vec3 u_paramB;
 uniform vec3 u_paramC;
 uniform vec3 u_paramD;
 uniform float _LEVELS;
-uniform float uSeed;
+uniform vec4 uSeed4;
 uniform int uLevel;
 
 #include "include/palette.glsl"
@@ -62,6 +62,7 @@ vec2 mapScene(vec3 p)
 
 vec3 computeRayDirection(ivec2 pixel, ivec2 resolution) {
     vec2 uv = (vec2(pixel) + vec2(0.5)) / vec2(resolution);
+    uv += (uSeed4.xy - 0.5f) * 0.0001;
     float ndcX = uv.x * 2.0 - 1.0;
     float ndcY = 1.0 - uv.y * 2.0;
 
@@ -90,7 +91,7 @@ void main()
     // Each mip level covers the full viewport, just at different resolutions
     vec3 rayDir = computeRayDirection(pixel, resolution);
     vec3 rayOrigin = uCameraPos;
-    // rayOrigin += 0.01 * vec3(0,0,fract(uSeed * 10.5677));
+
     float depth = 0.0;
 
     if (uLevel < TOP_LEVEL)

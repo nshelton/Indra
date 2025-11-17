@@ -17,21 +17,100 @@ layout(rgba16f, binding = 2) writeonly uniform image2D uColorOutput;
 // Uniforms
 // ============================================================================
 
+// Viewport
+uniform int uViewportWidth;
+uniform int uViewportHeight;
+uniform vec3 uCameraPos;
+uniform vec3 uCameraForward;
+uniform vec3 uCameraRight;
+uniform vec3 uCameraUp;
+uniform float uTanHalfFov;
+uniform float uAspect;
+
+vec3 computeRayDirection(ivec2 pixel, ivec2 resolution) {
+    vec2 uv = (vec2(pixel) + vec2(0.5)) / vec2(resolution);
+    float ndcX = uv.x * 2.0 - 1.0;
+    float ndcY = 1.0 - uv.y * 2.0;
+
+    return normalize(
+        vec3(0,0,-1) +
+        ndcX * uTanHalfFov * uAspect * vec3(1, 0, 0) +
+        -ndcY * uTanHalfFov * vec3(0, 1, 0)
+    );
+}
+
+vec2 projectToPixel(vec3 localPos, ivec2 resolution) {
+    // Transform world position to camera/view space
+    // Perspective divide
+    float ndcX = -localPos.x / (localPos.z * uTanHalfFov * uAspect);
+    float ndcY = localPos.y / (localPos.z * uTanHalfFov);
+    // NDC to UV to pixel
+    vec2 uv = vec2(
+        (ndcX + 1.0) * 0.5,
+        (1.0 - ndcY) * 0.5
+    );
+    return uv * vec2(resolution) - 0.5;
+}
+
+uniform mat4 uThisFrameToLastFrame;
 
 void main()
 {
     ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     ivec2 resolution = imageSize(uColorOutput);
 
-    // Bounds check
     if (pixel.x >= resolution.x || pixel.y >= resolution.y) {
         return;
     }
 
     vec4 current = imageLoad(u_thisFrameShaded, pixel);
-    vec4 last = imageLoad(u_lastFrameShaded, pixel);
 
-    vec4 result = mix(last, current, 0.1);
+    // Transform to NDC
+    vec4 ndcThisFrame = vec4(
+        (float(pixel.x) + 0.5) / float(uViewportWidth) * 2.0 - 1.0,
+        (float(pixel.y) + 0.5) / float(uViewportHeight) * 2.0 - 1.0,
+        current.a * 2.0 - 1.0,
+        1.0
+    );
+
+    // Reproject to last frame
+    vec3 thisFrameCamPos = computeRayDirection(pixel, resolution) * current.a;
+
+    vec3 lastFrameCameraPos = (uThisFrameToLastFrame * vec4(thisFrameCamPos, 1.0)).xyz;
+
+    vec2 lastPixel = projectToPixel(lastFrameCameraPos, resolution);
+
+    // Bounds check
+    if (lastPixel.x < 0.0 || lastPixel.x > float(resolution.x) ||
+        lastPixel.y < 0.0 || lastPixel.y > float(resolution.y)) {
+        vec4 err = vec4(1.0, 0.0, 1.0, current.a);
+        imageStore(uColorOutput, pixel, err);
+        return;
+    }
+    ivec2 lastPixelInt = ivec2(floor(lastPixel));
+    vec2 fract = lastPixel - vec2(lastPixelInt);
+    // Convert UV to pixel coordinates (for bilinear interpolation)
+
+    // // Bilinear sample (manual since using images)
+    vec4 s00 = imageLoad(u_lastFrameShaded, lastPixelInt + ivec2(0, 0));
+    vec4 s10 = imageLoad(u_lastFrameShaded, lastPixelInt + ivec2(1, 0));
+    vec4 s01 = imageLoad(u_lastFrameShaded, lastPixelInt + ivec2(0, 1));
+    vec4 s11 = imageLoad(u_lastFrameShaded, lastPixelInt + ivec2(1, 1));
+
+    vec4 last = mix(
+        mix(s00, s10, fract.x),
+        mix(s01, s11, fract.x),
+        fract.y
+    );
+
+    float depthDifference = abs(last.a - current.a);
+
+    float blendFactor = depthDifference < 0.1 ? 0.1 : 0.9;
+
+    vec3 blendedColor = mix(last.rgb, current.rgb,  blendFactor);
+    blendedColor.r = depthDifference;
+    // Adaptive blend based on depth difference (simple disocclusion detection)
+    vec4 result = vec4(blendedColor, current.a);
 
     imageStore(uColorOutput, pixel, result);
 }

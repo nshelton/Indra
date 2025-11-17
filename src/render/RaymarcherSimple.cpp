@@ -172,8 +172,12 @@ void RaymarcherSimple::raymarchDepthPyramid(const Camera &camera, const ShaderSt
 
     // Bind current level for writing
 
-    int location = m_baseDepthShader->getUniformLocationCached("uSeed");
-    glUniform1f(location, static_cast<float>(std::rand()) / RAND_MAX);
+    int location = m_baseDepthShader->getUniformLocationCached("uSeed4");
+    glUniform4f(location, 
+        static_cast<float>(std::rand()) / RAND_MAX,
+        static_cast<float>(std::rand()) / RAND_MAX,
+        static_cast<float>(std::rand()) / RAND_MAX,
+        static_cast<float>(std::rand()) / RAND_MAX);
 
     for (int level = TOP_LEVEL; level >= 0; level--)
     {
@@ -248,6 +252,12 @@ void RaymarcherSimple::reconstruction(const Camera &camera, const ShaderState &s
     // Bind output texture for writing
     glBindImageTexture(2, m_outputTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
 
+    matrix4 currentCameraTransform = camera.getViewMatrix();
+
+    matrix4 thisFrameToLastFrame = m_lastCameraTransform * currentCameraTransform.inverse();
+    int location = m_reconstructionShader->getUniformLocationCached("uThisFrameToLastFrame");
+    glUniformMatrix4fv(location, 1, GL_TRUE, &thisFrameToLastFrame.m[0][0]);
+
     // Dispatch
     int workGroupsX = (m_viewportWidth + 15) / 16;
     int workGroupsY = (m_viewportHeight + 15) / 16;
@@ -256,12 +266,16 @@ void RaymarcherSimple::reconstruction(const Camera &camera, const ShaderState &s
     // Memory barrier
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
+    m_lastCameraTransform = camera.getViewMatrix();
+
     // Swap output textures
     std::swap(m_outputTexture, m_outputTextureSwap);
 }
 
 void RaymarcherSimple::draw(const Camera &camera, const ShaderState &shaderState)
 {
+    auto frameStart = std::chrono::steady_clock::now();
+
     if (!m_baseDepthShader || !m_shadingShader)
         return;
 
@@ -288,6 +302,10 @@ void RaymarcherSimple::draw(const Camera &camera, const ShaderState &shaderState
     end = std::chrono::steady_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     m_lastExecutionTimes["reconstruction"] = duration.count() / 1000.0f;
+
+    auto frameEnd = std::chrono::steady_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(frameEnd - frameStart);
+    m_lastExecutionTimes["frame"] = duration.count() / 1000.0f;
 }
 
 bool RaymarcherSimple::reloadShaders()

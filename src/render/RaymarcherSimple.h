@@ -48,6 +48,8 @@ private:
     GLuint m_outputTextureSwap{0};
     GLuint m_currentShadedFrame{0};
 
+    matrix4 m_lastCameraTransform;
+
     // Viewport dimensions
     int m_viewportWidth{1920};
     int m_viewportHeight{1080};

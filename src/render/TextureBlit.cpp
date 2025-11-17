@@ -57,7 +57,7 @@ void TextureBlit::init()
         uniform sampler2D uTexture;
         void main()
         {
-            FragColor = texture(uTexture, TexCoords);
+            FragColor = vec4(texture(uTexture, TexCoords).rgb, 1.0);
         }
     )";
 
