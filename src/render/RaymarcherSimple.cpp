@@ -5,23 +5,29 @@
 
 #define TOP_LEVEL 5
 
-void RaymarcherSimple::createOutputTexture()
+void createTexture(GLuint &texture, GLenum internalFormat, int width, int height, int levels, GLenum format, GLenum type)
 {
-    if (m_outputTexture != 0)
+    if (texture != 0)
     {
-        glDeleteTextures(1, &m_outputTexture);
+        glDeleteTextures(1, &texture);
     }
 
-    glGenTextures(1, &m_outputTexture);
-    glBindTexture(GL_TEXTURE_2D, m_outputTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, m_viewportWidth, m_viewportHeight, 0, GL_RGBA, GL_FLOAT, nullptr);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexStorage2D(GL_TEXTURE_2D, levels, internalFormat, width, height);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
+}
 
-    LOG(INFO) << "RaymarcherSimple: Created output texture: " << m_viewportWidth << "x" << m_viewportHeight;
+void RaymarcherSimple::createOutputTextures()
+{
+    createTexture(m_outputTexture, GL_RGBA16F, m_viewportWidth, m_viewportHeight, 1, GL_RGBA, GL_HALF_FLOAT);
+    createTexture(m_outputTextureSwap, GL_RGBA16F, m_viewportWidth, m_viewportHeight, 1, GL_RGBA, GL_HALF_FLOAT);
+    createTexture(m_currentShadedFrame, GL_RGBA16F, m_viewportWidth, m_viewportHeight, 1, GL_RGBA, GL_HALF_FLOAT);
+    LOG(INFO) << "RaymarcherSimple: Created output textures: " << m_viewportWidth << "x" << m_viewportHeight;
 }
 
 void RaymarcherSimple::createDepthPyramid()
@@ -72,8 +78,8 @@ bool RaymarcherSimple::init()
     }
 
     // Load reconstruction shader
-    m_shadingShader = std::make_unique<ComputeShader>();
-    if (!m_shadingShader->loadFromFile("../../shaders/reconstruction.comp"))
+    m_reconstructionShader = std::make_unique<ComputeShader>();
+    if (!m_reconstructionShader->loadFromFile("../../shaders/reconstruction.comp"))
     {
         LOG(ERROR) << "RaymarcherSimple: Failed to load reconstruction shader";
         return false;
@@ -81,7 +87,7 @@ bool RaymarcherSimple::init()
 
     // Create depth pyramid and output texture
     createDepthPyramid();
-    createOutputTexture();
+    createOutputTextures();
 
     LOG(INFO) << "RaymarcherSimple: Initialized successfully with hierarchical depth pyramid";
     return true;
@@ -103,6 +109,17 @@ void RaymarcherSimple::shutdown()
         glDeleteTextures(1, &m_outputTexture);
         m_outputTexture = 0;
     }
+
+    if (m_outputTextureSwap != 0)
+    {
+        glDeleteTextures(1, &m_outputTextureSwap);
+        m_outputTextureSwap = 0;
+    }
+    if (m_currentShadedFrame != 0)
+    {
+        glDeleteTextures(1, &m_currentShadedFrame);
+        m_currentShadedFrame = 0;
+    }
 }
 
 void RaymarcherSimple::setViewportSize(int width, int height)
@@ -112,7 +129,7 @@ void RaymarcherSimple::setViewportSize(int width, int height)
         m_viewportWidth = width;
         m_viewportHeight = height;
         createDepthPyramid();
-        createOutputTexture();
+        createOutputTextures();
     }
 }
 
@@ -204,7 +221,7 @@ void RaymarcherSimple::shadeFromDepth(const Camera &camera, const ShaderState &s
     glBindImageTexture(0, m_depthPyramid, 0, GL_FALSE, 0, GL_READ_ONLY, GL_R32F);
 
     // Bind output texture for writing
-    glBindImageTexture(1, m_outputTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+    glBindImageTexture(1, m_currentShadedFrame, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
 
     // Dispatch
     int workGroupsX = (m_viewportWidth + 15) / 16;
@@ -215,6 +232,34 @@ void RaymarcherSimple::shadeFromDepth(const Camera &camera, const ShaderState &s
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 }
 
+void RaymarcherSimple::reconstruction(const Camera &camera, const ShaderState &shaderState)
+{
+    if (!m_reconstructionShader || m_outputTexture == 0 || m_outputTextureSwap == 0)
+        return;
+
+    m_reconstructionShader->use();
+    uploadCameraParameters(camera, m_reconstructionShader.get());
+    const_cast<ShaderState &>(shaderState).uploadUniforms(m_reconstructionShader.get());
+
+    // Bind input texture (shaded output) for reading
+    glBindImageTexture(0, m_currentShadedFrame, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+    glBindImageTexture(1, m_outputTextureSwap, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
+
+    // Bind output texture for writing
+    glBindImageTexture(2, m_outputTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
+
+    // Dispatch
+    int workGroupsX = (m_viewportWidth + 15) / 16;
+    int workGroupsY = (m_viewportHeight + 15) / 16;
+    m_reconstructionShader->dispatch(workGroupsX, workGroupsY, 1);
+
+    // Memory barrier
+    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+
+    // Swap output textures
+    std::swap(m_outputTexture, m_outputTextureSwap);
+}
+
 void RaymarcherSimple::draw(const Camera &camera, const ShaderState &shaderState)
 {
     if (!m_baseDepthShader || !m_shadingShader)
@@ -223,20 +268,26 @@ void RaymarcherSimple::draw(const Camera &camera, const ShaderState &shaderState
     if (m_depthPyramid == 0 || m_outputTexture == 0)
         return;
 
-    auto start = std::chrono::steady_clock::now();
-
     // Pass 1: Build depth pyramid (coarse to fine)
+    auto start = std::chrono::steady_clock::now();
     raymarchDepthPyramid(camera, shaderState);
-
     auto end = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     m_lastExecutionTimes["raymarchDepthPyramid"] = duration.count() / 1000.0f;
-    start = std::chrono::steady_clock::now();
+
     // Pass 2: Shade from depth
+    start = std::chrono::steady_clock::now();
     shadeFromDepth(camera, shaderState);
     end = std::chrono::steady_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     m_lastExecutionTimes["shadeFromDepth"] = duration.count() / 1000.0f;
+
+    // Pass 3: Reconstruction
+    start = std::chrono::steady_clock::now();
+    reconstruction(camera, shaderState);
+    end = std::chrono::steady_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    m_lastExecutionTimes["reconstruction"] = duration.count() / 1000.0f;
 }
 
 bool RaymarcherSimple::reloadShaders()
@@ -259,6 +310,16 @@ bool RaymarcherSimple::reloadShaders()
         if (success)
         {
             LOG(INFO) << "RaymarcherSimple: Shading shader reloaded successfully";
+        }
+        allSuccess &= success;
+    }
+
+    if (m_reconstructionShader && !m_reconstructionShader->getComputePath().empty())
+    {
+        bool success = m_reconstructionShader->reload();
+        if (success)
+        {
+            LOG(INFO) << "RaymarcherSimple: Reconstruction shader reloaded successfully";
         }
         allSuccess &= success;
     }

@@ -28,14 +28,15 @@ public:
     void drawGui();
 
 private:
-    void createOutputTexture();
+    void createOutputTextures();
     void createDepthPyramid();
     void raymarchDepthPyramid(const Camera& camera, const ShaderState& shaderState);
     void shadeFromDepth(const Camera& camera, const ShaderState& shaderState);
-
+    void reconstruction(const Camera& camera, const ShaderState& shaderState);
     // Compute shaders for hierarchical raymarching
     std::unique_ptr<ComputeShader> m_baseDepthShader;    // 4x4 base level
     std::unique_ptr<ComputeShader> m_shadingShader;      // Final shading pass
+    std::unique_ptr<ComputeShader> m_reconstructionShader;      // Reconstruction pass
 
     // Depth pyramid (mipmapped R32F texture)
     GLuint m_depthPyramid{0};
@@ -44,6 +45,8 @@ private:
 
     // Output texture (final RGBA16F shaded result)
     GLuint m_outputTexture{0};
+    GLuint m_outputTextureSwap{0};
+    GLuint m_currentShadedFrame{0};
 
     // Viewport dimensions
     int m_viewportWidth{1920};
