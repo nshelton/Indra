@@ -1,0 +1,66 @@
+#version 450 core
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+// ============================================================================
+// Buffers and Textures
+// ============================================================================
+
+// Depth input (from raymarching passes)
+layout(r32f, binding = 0) readonly uniform image2D uDepthMap;
+layout(r32f, binding = 0) readonly uniform image2D uDepthMap;
+
+// Color output
+layout(rgba32f, binding = 1) writeonly uniform image2D uColorOutput;
+
+// ============================================================================
+// Uniforms
+// ============================================================================
+
+// Camera
+uniform vec3 uCameraPos;
+uniform vec3 uCameraForward;
+uniform vec3 uCameraRight;
+uniform vec3 uCameraUp;
+uniform float uTanHalfFov;
+uniform float uAspect;
+
+// Scene
+uniform vec4 uBackgroundColor;
+
+// Viewport
+uniform int uViewportWidth;
+uniform int uViewportHeight;
+
+// Raymarching parameters
+uniform float uMaxDistance;
+uniform float uSurfaceEpsilon;
+uniform float uSeed;
+
+// Fractal parameters
+uniform vec3 u_paramA;
+uniform vec3 u_paramB;
+uniform vec3 u_paramC;
+uniform vec3 u_paramD;
+uniform float _LEVELS;
+
+#include "include/palette.glsl"
+#include "include/distance.glsl"
+
+vec2 mapScene(vec3 p)
+{
+    return tglad(p);
+}
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 resolution = imageSize(uColorOutput);
+
+    // Bounds check
+    if (pixel.x >= resolution.x || pixel.y >= resolution.y) {
+        return;
+    }
+
+   
+}

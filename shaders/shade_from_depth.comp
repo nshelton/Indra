@@ -34,6 +34,7 @@ uniform int uViewportHeight;
 // Raymarching parameters
 uniform float uMaxDistance;
 uniform float uSurfaceEpsilon;
+uniform float uSeed;
 
 // Fractal parameters
 uniform vec3 u_paramA;
@@ -54,10 +55,10 @@ vec2 mapScene(vec3 p)
 // Normal Estimation
 // ============================================================================
 
-vec3 estimateNormal(vec3 p)
+vec3 estimateNormal(vec3 p, float d)
 {
     const vec3 e = vec3(1, -1, 0);
-    const float h = exp(-uSurfaceEpsilon);
+    const float h = exp(-uSurfaceEpsilon) * d;
     return normalize(
         e.xyy * mapScene(p + e.xyy * h).x +
         e.yyx * mapScene(p + e.yyx * h).x +
@@ -82,9 +83,165 @@ vec3 computeRayDirection(ivec2 pixel, ivec2 resolution) {
     );
 }
 
+float rand(vec2 px, float seed)
+{
+    float result = fract(sin(seed / 1000.0f * dot(px, vec2(2.998f, 7.133f))) * 3119.5453f);
+    return result;
+}
+
+#define PI 3.14159265359
+
+float rand(vec2 co)
+{
+    return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+}
+
+float rand(float c)
+{
+    vec2 co = vec2(c, c);
+    return fract(sin(dot(co.xy, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+}
+
+// PRNG function
+float nrand(vec2 uv, float salt)
+{
+    uv += vec2(salt, uSeed);
+    return fract(sin(dot(uv, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+
+//Random number [0:1] without sine
+#define HASHSCALE1 .16180339887
+float hash(float p)
+{
+	vec3 p3  = fract(vec3(p) * HASHSCALE1);
+    p3 += dot(p3, p3.yzx + 19.19);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
+vec3 randomSphereDir(vec2 uv)
+{
+    float u = nrand(uv, 10) * 2 - 1;
+    float theta = nrand(uv, 11) * PI * 2;
+    float u2 = sqrt(1 - u * u);
+    return vec3(u2 * cos(theta), u2 * sin(theta), u);
+}
+
+vec3 randomHemisphereDir(vec3 dir, float i)
+{
+	vec3 v = randomSphereDir( vec2(rand(i + 1.0), rand(i + 2.0)) );
+	return v * sign(dot(v, dir));
+}
+
+
+float sdot(vec3 x, vec3 y, float f)
+{
+    return clamp(dot(x, y) * f, 0.0, 1.0);
+}
+
+float calc_energy(vec3 color)
+{
+    return dot(color, vec3(1.0 / 3.0));
+}
+
+
+mat3 GetTangentSpace(vec3 normal)
+{
+    // Choose a helper vector for the cross product
+    vec3 helper = vec3(1, 0, 0);
+    if (abs(normal.x) > 0.99f)
+        helper = vec3(0, 0, 1);
+
+    // Generate vectors
+    vec3 tangent = normalize(cross(normal, helper));
+    vec3 binormal = normalize(cross(normal, tangent));
+    return mat3(tangent, binormal, normal);
+}
+
+vec3 SampleHemisphere(vec3 normal, float alpha)
+{
+    // Sample the hemisphere, where alpha determines the kind of the sampling
+    float cosTheta = pow(rand(gl_GlobalInvocationID.xy, uSeed * 87), 1.0f / (alpha + 1.0f));
+    float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
+    float phi = 2 * PI * rand(gl_GlobalInvocationID.xy, uSeed * 1131.7);
+    vec3 tangentSpaceDir = vec3(cos(phi) * sinTheta, sin(phi) * sinTheta, cosTheta);
+
+    // Transform direction to world space
+    return GetTangentSpace(normal) * tangentSpaceDir;
+}
+
 // ============================================================================
 // Shading Pass (read depth, compute color)
 // ============================================================================
+
+
+float SmoothnessToPhongAlpha(float s)
+{
+    return pow(1000.0f, s * s);
+}
+
+vec3 shadePoint(vec3 rayOrigin, vec3 rayDir, float depth) {
+
+    vec3 albedo = vec3(1,1,1);
+    vec3 specular = vec3(0.5);
+    float smoothness = 0.5;
+        vec3 emission = vec3(0.0f);
+
+    vec3 position = rayOrigin + rayDir * depth;
+    vec3 normal = estimateNormal(position, depth);
+
+    // Calculate chances of diffuse and specular reflection
+    // albedo = min(1.0f - specular, albedo);
+    float specChance = calc_energy(specular);
+    float diffChance = calc_energy(albedo);
+
+    vec3 origin = position + normal * 0.001f;
+    vec3 direction;
+    float energy = 1;
+
+    // Roulette-select the ray's path
+    float roulette = rand(gl_GlobalInvocationID.xy, uSeed);
+
+    direction = SampleHemisphere(normal, 1.0f);
+
+    energy *= (1.0f / diffChance) * calc_energy(albedo);
+
+    float t = 0.0;
+    bool hitSurface = false;
+    for (int step = 0; step < 100; step++)
+    {
+        vec3 pos = origin + direction * t;
+        vec2 df_result = mapScene(pos);
+        float dist = df_result.x;
+
+        if (dist < exp(-uSurfaceEpsilon) * depth) {
+            hitSurface = true;
+            break;
+        }
+
+        t += dist;
+
+        if (t >= uMaxDistance) {
+            break;
+        }
+    }
+
+    if (hitSurface)
+    {
+        vec3 hitPos = rayOrigin + rayDir * t;
+        vec3 hitNormal = estimateNormal(hitPos, depth);
+
+        return exp(t) * energy * albedo * sdot(direction, hitNormal, 1.0f);
+    }
+    else
+    {
+        // No hit, add background color
+        emission += energy * uBackgroundColor.rgb;
+    }
+
+    return vec3(emission);
+
+}
 
 void main()
 {
@@ -96,38 +253,16 @@ void main()
         return;
     }
 
-    // Read final depth from depth pyramid (mip level 0)
     float depth = imageLoad(uDepthMap, pixel).r;
 
-    vec3 color;
-    // Generate ray
-    vec3 rayOrigin = uCameraPos;
-    vec3 rayDir = computeRayDirection(pixel, resolution);
-
-    // Check if ray hit surface (depth less than max distance)
-    if (depth < uMaxDistance - 0.01) {
-        // Hit! Compute surface position
-        vec3 surfacePos = rayOrigin + rayDir * depth;
-
-        // Get orbit trap or distance field info for coloring
-        vec2 sceneData = mapScene(surfacePos);
-        float orbit = sceneData.y;
-
-        // Compute normal for lighting
-        vec3 normal = estimateNormal(surfacePos);
-        vec3 lightDir = normalize(vec3(0.4, 0.8, 0.2));
-        float diffuse = max(dot(normal, lightDir), 0.0);
-
-        // Use palette-based coloring like in original
-        vec3 baseColor = palette(orbit/10);
-        color = baseColor * diffuse + baseColor * 0.1;
-
-        // Alternative: Simple white shading (uncomment if you prefer)
-        // color = vec3(diffuse * 0.8 + 0.2);
-    } else {
-        // Miss - use background
-        color = uBackgroundColor.rgb;
+    if (depth <= 0.0 || depth > uMaxDistance) {
+        imageStore(uColorOutput, pixel, uBackgroundColor);
     }
+    else {
+        vec3 rayOrigin = uCameraPos;
+        vec3 rayDir = computeRayDirection(pixel, resolution);
 
-    imageStore(uColorOutput, pixel, vec4(color, 1.0));
+        vec3 color = shadePoint(rayOrigin, rayDir, depth);
+        imageStore(uColorOutput, pixel, vec4(color, 1.0));
+    }
 }

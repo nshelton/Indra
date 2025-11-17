@@ -3,6 +3,8 @@
 #include <glog/logging.h>
 #include <cmath>
 
+#define TOP_LEVEL 5
+
 void RaymarcherSimple::createOutputTexture()
 {
     if (m_outputTexture != 0)
@@ -66,6 +68,14 @@ bool RaymarcherSimple::init()
     if (!m_shadingShader->loadFromFile("../../shaders/shade_from_depth.comp"))
     {
         LOG(ERROR) << "RaymarcherSimple: Failed to load shading shader";
+        return false;
+    }
+
+    // Load reconstruction shader
+    m_shadingShader = std::make_unique<ComputeShader>();
+    if (!m_shadingShader->loadFromFile("../../shaders/reconstruction.comp"))
+    {
+        LOG(ERROR) << "RaymarcherSimple: Failed to load reconstruction shader";
         return false;
     }
 
@@ -145,7 +155,10 @@ void RaymarcherSimple::raymarchDepthPyramid(const Camera &camera, const ShaderSt
 
     // Bind current level for writing
 
-    for (int level = 6; level >= 0; level--)
+    int location = m_baseDepthShader->getUniformLocationCached("uSeed");
+    glUniform1f(location, static_cast<float>(std::rand()) / RAND_MAX);
+
+    for (int level = TOP_LEVEL; level >= 0; level--)
     {
         auto start = std::chrono::steady_clock::now();
 
@@ -156,7 +169,7 @@ void RaymarcherSimple::raymarchDepthPyramid(const Camera &camera, const ShaderSt
         int levelHeight = m_viewportHeight >> level;
 
         // Bind previous level for reading
-        if (level < 6)
+        if (level < TOP_LEVEL)
         {
             glBindImageTexture(0, m_depthPyramid, level + 1, GL_FALSE, 0, GL_READ_ONLY, GL_R32F);
         }
@@ -184,6 +197,8 @@ void RaymarcherSimple::shadeFromDepth(const Camera &camera, const ShaderState &s
     m_shadingShader->use();
     uploadCameraParameters(camera, m_shadingShader.get());
     const_cast<ShaderState &>(shaderState).uploadUniforms(m_shadingShader.get());
+
+    glUniform1f(m_shadingShader->getUniformLocationCached("uSeed"), static_cast<float>(std::rand()) / RAND_MAX);
 
     // Bind depth pyramid level 0 for reading
     glBindImageTexture(0, m_depthPyramid, 0, GL_FALSE, 0, GL_READ_ONLY, GL_R32F);

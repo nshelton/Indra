@@ -87,10 +87,8 @@ bool Shader::compileShader(GLuint shader, const char *source, const std::string 
             errorLineNum = std::stoi(lineNumMatch[1].str());
         }
 
-        char shadersrc[4096];
-        glGetShaderSource(shader, 4096, nullptr, shadersrc);
         // split source into lines for better debugging
-        std::istringstream srcStream(shadersrc);
+        std::istringstream srcStream(source);
         std::string srcLine;
         int lineNum = 1;
         while (std::getline(srcStream, srcLine))

@@ -55,22 +55,6 @@ vec2 mapScene(vec3 p)
 }
 
 // ============================================================================
-// Normal Estimation
-// ============================================================================
-
-vec3 estimateNormal(vec3 p)
-{
-    const vec3 e = vec3(1, -1, 0);
-    const float h = 0.001;
-    return normalize(
-        e.xyy * mapScene(p + e.xyy * h).x +
-        e.yyx * mapScene(p + e.yyx * h).x +
-        e.yxy * mapScene(p + e.yxy * h).x +
-        e.xxx * mapScene(p + e.xxx * h).x
-    );
-}
-
-// ============================================================================
 // Ray Generation
 // ============================================================================
 

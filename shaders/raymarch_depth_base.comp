@@ -14,6 +14,8 @@ layout(r32f, binding = 1) writeonly uniform image2D uDepthOutput;
 // Uniforms
 // ============================================================================
 
+#define TOP_LEVEL 5
+
 // Camera
 uniform vec3 uCameraPos;
 uniform vec3 uCameraForward;
@@ -90,7 +92,7 @@ void main()
     vec3 rayOrigin = uCameraPos;
     float depth = 0.0;
 
-    if (uLevel < 6)
+    if (uLevel < TOP_LEVEL)
     {
         // Read previous level depth (nearest neighbor upsampling)
         ivec2 parentPixel = pixel / 2;
@@ -106,7 +108,7 @@ void main()
         vec2 df_result = mapScene(pos);
         float dist = df_result.x;
 
-        if (dist < exp(-uSurfaceEpsilon) * (1 << uLevel)) {
+        if (dist < exp(-uSurfaceEpsilon) * (1 << uLevel) * depth) {
             hitSurface = true;
             break;
         }
