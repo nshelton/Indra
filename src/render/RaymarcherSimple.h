@@ -25,25 +25,7 @@ public:
     /// @brief Get the output texture that the raymarcher writes to
     GLuint getOutputTexture() const { return m_outputTexture; }
 
-    /// @brief Get GPU execution time of the last raymarch pass
-    /// @return Execution time in milliseconds
-    float getExecutionTimeMs() const
-    {
-        return m_baseDepthShader ? m_baseDepthShader->getLastExecutionTimeMs() : 0.0f;
-    }
-
-    /// @brief Get work group size used by the compute shader
-    void getWorkGroupSize(GLint& sizeX, GLint& sizeY, GLint& sizeZ) const
-    {
-        if (m_baseDepthShader)
-        {
-            m_baseDepthShader->getWorkGroupSize(sizeX, sizeY, sizeZ);
-        }
-        else
-        {
-            sizeX = sizeY = sizeZ = 0;
-        }
-    }
+    void drawGui();
 
 private:
     void createOutputTexture();
@@ -53,7 +35,6 @@ private:
 
     // Compute shaders for hierarchical raymarching
     std::unique_ptr<ComputeShader> m_baseDepthShader;    // 4x4 base level
-    std::unique_ptr<ComputeShader> m_refineDepthShader;  // Refinement levels
     std::unique_ptr<ComputeShader> m_shadingShader;      // Final shading pass
 
     // Depth pyramid (mipmapped R32F texture)
@@ -67,4 +48,7 @@ private:
     // Viewport dimensions
     int m_viewportWidth{1920};
     int m_viewportHeight{1080};
+
+    // GPU timing
+    std::unordered_map<std::string, float> m_lastExecutionTimes;
 };

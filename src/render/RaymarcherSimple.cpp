@@ -46,7 +46,6 @@ void RaymarcherSimple::createDepthPyramid()
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     glBindTexture(GL_TEXTURE_2D, 0);
 
-
     LOG(INFO) << "RaymarcherSimple: Created depth pyramid with " << m_numLevels
               << " levels, base level " << m_baseLevelIndex
               << " (" << (maxDim >> m_baseLevelIndex) << "x" << (maxDim >> m_baseLevelIndex) << ")";
@@ -59,14 +58,6 @@ bool RaymarcherSimple::init()
     if (!m_baseDepthShader->loadFromFile("../../shaders/raymarch_depth_base.comp"))
     {
         LOG(ERROR) << "RaymarcherSimple: Failed to load base depth shader";
-        return false;
-    }
-
-    // Load refinement depth shader
-    m_refineDepthShader = std::make_unique<ComputeShader>();
-    if (!m_refineDepthShader->loadFromFile("../../shaders/raymarch_depth_refine.comp"))
-    {
-        LOG(ERROR) << "RaymarcherSimple: Failed to load refinement depth shader";
         return false;
     }
 
@@ -89,7 +80,6 @@ bool RaymarcherSimple::init()
 void RaymarcherSimple::shutdown()
 {
     m_baseDepthShader.reset();
-    m_refineDepthShader.reset();
     m_shadingShader.reset();
 
     if (m_depthPyramid != 0)
@@ -143,66 +133,47 @@ void RaymarcherSimple::uploadCameraParameters(const Camera &camera, ComputeShade
 
 void RaymarcherSimple::raymarchDepthPyramid(const Camera &camera, const ShaderState &shaderState)
 {
-    if (!m_baseDepthShader || !m_refineDepthShader || m_depthPyramid == 0)
+
+    if (!m_baseDepthShader || m_depthPyramid == 0)
         return;
+
+    // Pass 1: Build depth pyramid (coarse to fine)
 
     m_baseDepthShader->use();
     uploadCameraParameters(camera, m_baseDepthShader.get());
     const_cast<ShaderState &>(shaderState).uploadUniforms(m_baseDepthShader.get());
 
     // Bind current level for writing
-    int level = 0;
-    int levelWidth = m_viewportWidth >> level;
-    int levelHeight = m_viewportHeight >> level;
-    glBindImageTexture(0, m_depthPyramid, level, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
 
-    // Dispatch
-    int workGroupsX = (levelWidth + 15) / 16;
-    int workGroupsY = (levelHeight + 15) / 16;
-    m_baseDepthShader->dispatch(workGroupsX, workGroupsY, 1);
+    for (int level = 6; level >= 0; level--)
+    {
+        auto start = std::chrono::steady_clock::now();
 
-    // // Raymarch from coarse to fine (high mip level to low mip level)
-    // for (int level = m_baseLevelIndex; level >= 0; level--)
-    // {
-    //     int levelWidth = m_viewportWidth >> level;
-    //     int levelHeight = m_viewportHeight >> level;
+        int location = m_baseDepthShader->getUniformLocationCached("uLevel");
+        glUniform1i(location, level);
 
-    //     if (level == m_baseLevelIndex)
-    //     {
-    //         // Base level: raymarch from scratch
-    //         m_baseDepthShader->use();
-    //         uploadCameraParameters(camera, m_baseDepthShader.get());
-    //         const_cast<ShaderState &>(shaderState).uploadUniforms(m_baseDepthShader.get());
+        int levelWidth = m_viewportWidth >> level;
+        int levelHeight = m_viewportHeight >> level;
 
-    //         // Bind current level for writing
-    //         glBindImageTexture(0, m_depthPyramid, level, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
+        // Bind previous level for reading
+        if (level < 6)
+        {
+            glBindImageTexture(0, m_depthPyramid, level + 1, GL_FALSE, 0, GL_READ_ONLY, GL_R32F);
+        }
 
-    //         // Dispatch
-    //         int workGroupsX = (levelWidth + 15) / 16;
-    //         int workGroupsY = (levelHeight + 15) / 16;
-    //         m_baseDepthShader->dispatch(workGroupsX, workGroupsY, 1);
-    //     }
-    //     else
-    //     {
-    //         // Refinement level: continue from parent
-    //         m_refineDepthShader->use();
-    //         uploadCameraParameters(camera, m_refineDepthShader.get());
-    //         const_cast<ShaderState&>(shaderState).uploadUniforms(m_refineDepthShader.get());
+        // Bind this levelfor writing
+        glBindImageTexture(1, m_depthPyramid, level, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
+        // Dispatch
+        int workGroupsX = (levelWidth + 15) / 16;
+        int workGroupsY = (levelHeight + 15) / 16;
+        m_baseDepthShader->dispatch(workGroupsX, workGroupsY, 1);
+        // Memory barrier to ensure level is complete before next level reads it
+        glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 
-    //         // Bind parent level for reading (coarser level = higher index)
-    //         glBindImageTexture(0, m_depthPyramid, level + 1, GL_FALSE, 0, GL_READ_ONLY, GL_R32F);
-
-    //         // Bind current level for writing
-    //         glBindImageTexture(1, m_depthPyramid, level, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
-
-    //         // Dispatch
-    //         int workGroupsX = (levelWidth + 15) / 16;
-    //         int workGroupsY = (levelHeight + 15) / 16;
-    //         m_refineDepthShader->dispatch(workGroupsX, workGroupsY, 1);
-    //     }
-
-    // Memory barrier to ensure level is complete before next level reads it
-    glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+        auto end = std::chrono::steady_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+        m_lastExecutionTimes["raymarch l" + std::to_string(level)] = duration.count() / 1000.0f;
+    }
 }
 
 void RaymarcherSimple::shadeFromDepth(const Camera &camera, const ShaderState &shaderState)
@@ -231,17 +202,26 @@ void RaymarcherSimple::shadeFromDepth(const Camera &camera, const ShaderState &s
 
 void RaymarcherSimple::draw(const Camera &camera, const ShaderState &shaderState)
 {
-    if (!m_baseDepthShader || !m_refineDepthShader || !m_shadingShader)
+    if (!m_baseDepthShader || !m_shadingShader)
         return;
 
     if (m_depthPyramid == 0 || m_outputTexture == 0)
         return;
 
+    auto start = std::chrono::steady_clock::now();
+
     // Pass 1: Build depth pyramid (coarse to fine)
     raymarchDepthPyramid(camera, shaderState);
 
+    auto end = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    m_lastExecutionTimes["raymarchDepthPyramid"] = duration.count() / 1000.0f;
+    start = std::chrono::steady_clock::now();
     // Pass 2: Shade from depth
     shadeFromDepth(camera, shaderState);
+    end = std::chrono::steady_clock::now();
+    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    m_lastExecutionTimes["shadeFromDepth"] = duration.count() / 1000.0f;
 }
 
 bool RaymarcherSimple::reloadShaders()
@@ -258,16 +238,6 @@ bool RaymarcherSimple::reloadShaders()
         allSuccess &= success;
     }
 
-    if (m_refineDepthShader && !m_refineDepthShader->getComputePath().empty())
-    {
-        bool success = m_refineDepthShader->reload();
-        if (success)
-        {
-            LOG(INFO) << "RaymarcherSimple: Refinement depth shader reloaded successfully";
-        }
-        allSuccess &= success;
-    }
-
     if (m_shadingShader && !m_shadingShader->getComputePath().empty())
     {
         bool success = m_shadingShader->reload();
@@ -279,4 +249,15 @@ bool RaymarcherSimple::reloadShaders()
     }
 
     return allSuccess;
+}
+
+void RaymarcherSimple::drawGui()
+{
+    ImGui::Separator();
+    ImGui::Text("Raymarcher Simple GPU Timings (ms)");
+
+    for (const auto &entry : m_lastExecutionTimes)
+    {
+        ImGui::Text("%s: %.3f ms", entry.first.c_str(), entry.second);
+    }
 }

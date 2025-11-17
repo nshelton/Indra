@@ -33,6 +33,7 @@ uniform int uViewportHeight;
 
 // Raymarching parameters
 uniform float uMaxDistance;
+uniform float uSurfaceEpsilon;
 
 // Fractal parameters
 uniform vec3 u_paramA;
@@ -56,7 +57,7 @@ vec2 mapScene(vec3 p)
 vec3 estimateNormal(vec3 p)
 {
     const vec3 e = vec3(1, -1, 0);
-    const float h = 0.001;
+    const float h = exp(-uSurfaceEpsilon);
     return normalize(
         e.xyy * mapScene(p + e.xyy * h).x +
         e.yyx * mapScene(p + e.yyx * h).x +
@@ -98,10 +99,7 @@ void main()
     // Read final depth from depth pyramid (mip level 0)
     float depth = imageLoad(uDepthMap, pixel).r;
 
-    // DEBUG: Visualize depth directly
-    vec3 color = vec3(depth / uMaxDistance);  // Normalize depth to [0,1]
-
-   // ORIGINAL SHADING CODE - COMMENTED OUT FOR DEBUG
+    vec3 color;
     // Generate ray
     vec3 rayOrigin = uCameraPos;
     vec3 rayDir = computeRayDirection(pixel, resolution);

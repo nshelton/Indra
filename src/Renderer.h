@@ -52,13 +52,6 @@ public:
     // Hot-reload shaders and kernels
     bool reloadShaders() { return m_raymarcher.reloadShaders(); }
 
-    // Performance metrics
-    float getRaymarcherExecutionTimeMs() const { return m_raymarcher.getExecutionTimeMs(); }
-    void getRaymarcherWorkGroupSize(GLint& sizeX, GLint& sizeY, GLint& sizeZ) const
-    {
-        m_raymarcher.getWorkGroupSize(sizeX, sizeY, sizeZ);
-    }
-
 private:
     bool m_initialized{false};
 

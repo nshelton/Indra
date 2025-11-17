@@ -7,7 +7,8 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 // ============================================================================
 
 // Depth output (single channel R32F)
-layout(r32f, binding = 0) writeonly uniform image2D uDepthOutput;
+layout(r32f, binding = 0) readonly uniform image2D uPreviousLevel;
+layout(r32f, binding = 1) writeonly uniform image2D uDepthOutput;
 
 // ============================================================================
 // Uniforms
@@ -37,6 +38,8 @@ uniform vec3 u_paramB;
 uniform vec3 u_paramC;
 uniform vec3 u_paramD;
 uniform float _LEVELS;
+
+uniform int uLevel;
 
 #include "include/palette.glsl"
 #include "include/distance.glsl"
@@ -87,6 +90,14 @@ void main()
     vec3 rayOrigin = uCameraPos;
     float depth = 0.0;
 
+    if (uLevel < 6)
+    {
+        // Read previous level depth (nearest neighbor upsampling)
+        ivec2 parentPixel = pixel / 2;
+        float parentDepth = imageLoad(uPreviousLevel, parentPixel).r;
+        depth = parentDepth;
+    }
+
     // Raymarch from scratch
     bool hitSurface = false;
 
@@ -95,7 +106,7 @@ void main()
         vec2 df_result = mapScene(pos);
         float dist = df_result.x;
 
-        if (dist < uSurfaceEpsilon) {
+        if (dist < exp(-uSurfaceEpsilon) * (1 << uLevel)) {
             hitSurface = true;
             break;
         }
