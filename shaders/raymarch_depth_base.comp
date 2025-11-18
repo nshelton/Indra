@@ -14,7 +14,7 @@ layout(r32f, binding = 1) writeonly uniform image2D uDepthOutput;
 // Uniforms
 // ============================================================================
 
-#define TOP_LEVEL 5
+#define TOP_LEVEL 7
 
 // Camera
 uniform vec3 uCameraPos;

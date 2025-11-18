@@ -119,14 +119,14 @@ vec2 tglad(vec3 z0)
 
     for (int n = 0; n < _LEVELS; n++)
     {
-        // vec3 start = z.xyz;
+        vec3 start = z.xyz;
         z.xyz = rotate_vector(z.xyz, q_rot);
 
         // boxFold
         z.xyz = clamp(z.xyz, -u_paramB * 20.0, u_paramB * 20.0) * 2.0 - z.xyz;
         z *= scale / clamp(dot(z.xyz, z.xyz), mr, mxr);
-        // z += p0;
-        // orbit += length(start - z.xyz);
+        z += p0;
+        orbit += length(start - z.xyz);
 
     }
 
@@ -171,8 +171,6 @@ vec2 MBOX(vec3 z)
     vec3 offset = z/1;
     float dr = 0.5;
 
-
-
     float Scale = u_paramC.x * 10.0f - (z.y - u_paramD.x * 10.0f) *u_paramD.z* 10.0f;
     float iter = 0.0;
 
@@ -198,8 +196,51 @@ vec2 MBOX(vec3 z)
     return vec2(r / abs(dr), orbit);
 }
 
+
+vec2 fractal(vec3 p)
+{
+    vec3  z  = p;
+    float dr = 1.0;
+    float MANDELBOX_SCALE        = u_paramA.x * 5;
+    float MANDELBOX_MIN_RADIUS   = u_paramA.y;
+    float MANDELBOX_FIXED_RADIUS = u_paramA.z * 5;
+
+    float minR2   = MANDELBOX_MIN_RADIUS   * MANDELBOX_MIN_RADIUS;
+    float fixedR2 = MANDELBOX_FIXED_RADIUS * MANDELBOX_FIXED_RADIUS;
+
+    for (int i = 0; i < _LEVELS; ++i)
+    {
+        // --- Box fold: reflect into [-1,1]^3 "box"
+        z = clamp(z, -1.0, 1.0) * 2.0 - z;
+
+        // --- Sphere fold: push/pull points into a shell
+        float r2 = dot(z, z);
+
+        // fold small radii up to fixed radius
+        if (r2 < fixedR2) {
+            float t = fixedR2 / max(r2, 1e-6);  // avoid div by zero
+            z  *= t;
+            dr *= t;
+        }
+        // fold medium radii into min radius sphere
+        else if (r2 < minR2) {
+            float t = minR2 / r2;
+            z  *= t;
+            dr *= t;
+        }
+
+        // --- Scale and re-center
+        z  = z * MANDELBOX_SCALE + p;
+        dr = dr * abs(MANDELBOX_SCALE) + 1.0;
+    }
+
+    float r = length(z);
+    return vec2(r / abs(dr), 0.0);  // distance estimate
+}
+
 vec2 mapScene(vec3 p)
 {
-    return MBOX(p);
-    // return tglad(p);
+    // return fractal(p);
+    // return MBOX(p);
+    return tglad(p);
 }

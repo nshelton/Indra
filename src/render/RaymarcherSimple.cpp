@@ -3,7 +3,7 @@
 #include <glog/logging.h>
 #include <cmath>
 
-#define TOP_LEVEL 5
+#define TOP_LEVEL 7
 
 void createTexture(GLuint &texture, GLenum internalFormat, int width, int height, int levels, GLenum format, GLenum type)
 {
@@ -197,7 +197,10 @@ void RaymarcherSimple::raymarchDepthPyramid(const Camera &camera, const ShaderSt
 
         // Bind this levelfor writing
         glBindImageTexture(1, m_depthPyramid, level, GL_FALSE, 0, GL_WRITE_ONLY, GL_R32F);
+
         // Dispatch
+        // Note: Top levels (7-8) have poor occupancy due to small resolution + texture reads
+        // Consider batching or skipping intermediate levels for better performance
         int workGroupsX = (levelWidth + 15) / 16;
         int workGroupsY = (levelHeight + 15) / 16;
         m_baseDepthShader->dispatch(workGroupsX, workGroupsY, 1);

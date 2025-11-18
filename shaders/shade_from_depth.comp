@@ -171,44 +171,50 @@ vec3 SampleHemisphere(vec3 normal, float alpha)
 // ============================================================================
 
 
-vec3 shadePoint(vec3 rayOrigin, vec3 rayDir, float depth) {
-
+vec3 shadePointSimple(vec3 rayOrigin, vec3 rayDir, float depth) {
+    // Simple shading based on normal and albedo
     vec3 position = rayOrigin + rayDir * depth;
     vec3 normal = estimateNormal(position, depth);
-    // position += normal + 0.001f;
     vec2 world_Sample = mapScene(position);
     vec3 albedo = palette(world_Sample.y);
-    vec3 specular = vec3(0.5);
-    float smoothness = 0.5;
-    vec3 emission = vec3(0.0f);
 
+    float diffuse = sdot(normal, -rayDir, 1.0f);
 
-    // Calculate chances of diffuse and specular reflection
-    // albedo = min(1.0f - specular, albedo);
-    float specChance = calc_energy(specular);
-    float diffChance = calc_energy(albedo);
+    return albedo * diffuse;
+}
 
-    vec3 origin = position ;
-    vec3 direction;
-    float energy = 1;
+// ============================================================================
+// Path Tracing Helper Functions
+// ============================================================================
 
-    // Roulette-select the ray's path
-    float roulette = rand(gl_GlobalInvocationID.xy, uSeed);
+struct RayHit {
+    bool hit;
+    float distance;
+    vec3 position;
+    vec3 normal;
+    vec3 albedo;
+};
 
-    direction = SampleHemisphere(normal, 0.5f);
+// Trace a ray through the scene and return hit information
+RayHit traceRay(vec3 origin, vec3 direction, int maxSteps) {
+    RayHit result;
+    result.hit = false;
+    result.distance = 0.0;
 
-    energy *= (1.0f / diffChance) * calc_energy(albedo);
+    // Small offset to avoid self-intersection
+    float t = 0.001;
 
-    float t = 0.0;
-    bool hitSurface = false;
-    for (int step = 0; step < 100; step++)
-    {
+    for (int step = 0; step < maxSteps; step++) {
         vec3 pos = origin + direction * t;
         vec2 df_result = mapScene(pos);
         float dist = df_result.x;
 
-        if (dist < 0.001f ) {
-            hitSurface = true;
+        if (dist < 0.001) {
+            result.hit = true;
+            result.distance = t;
+            result.position = pos;
+            result.normal = estimateNormal(pos, t);
+            result.albedo = palette(df_result.y);
             break;
         }
 
@@ -219,21 +225,84 @@ vec3 shadePoint(vec3 rayOrigin, vec3 rayDir, float depth) {
         }
     }
 
-    if (hitSurface)
-    {
-        vec3 hitPos = rayOrigin + rayDir * t;
-        vec3 hitNormal = estimateNormal(hitPos, depth);
+    return result;
+}
 
-        return albedo  * sdot(direction, hitNormal, -1.0f);
+// Cosine-weighted hemisphere sampling for diffuse surfaces
+vec3 SampleCosineHemisphere(vec3 normal, vec2 seed) {
+    float u1 = nrand(seed, 10);
+    float u2 = nrand(seed, 11);
+
+    // Cosine-weighted sampling
+    float r = sqrt(u1);
+    float theta = 2.0 * PI * u2;
+
+    vec3 tangentDir = vec3(r * cos(theta), r * sin(theta), sqrt(max(0.0, 1.0 - u1)));
+
+    // Transform to world space
+    return GetTangentSpace(normal) * tangentDir;
+}
+
+// Multi-bounce path tracing
+vec3 shadePoint(vec3 rayOrigin, vec3 rayDir, float depth) {
+    // 2-3 bounces gives nice AO look
+    const int MAX_BOUNCES = 3;
+
+    // Track light attenuation
+    vec3 throughput = vec3(1.0);
+    // Accumulated light
+    vec3 radiance = vec3(0.0);
+
+    // First hit is given (from depth map)
+    vec3 position = rayOrigin + rayDir * depth;
+    vec3 normal = estimateNormal(position, depth);
+    vec2 world_Sample = mapScene(position);
+    vec3 albedo = palette(world_Sample.y);
+
+    // Start path tracing from first bounce
+    // Offset to avoid self-intersection
+    vec3 currentOrigin = position + normal * 0.002;
+
+    for (int bounce = 0; bounce < MAX_BOUNCES; bounce++) {
+        // Generate random direction in hemisphere
+        vec2 seed = gl_GlobalInvocationID.xy + vec2(bounce * 13.7, bounce * 27.3);
+        vec3 bounceDir = SampleCosineHemisphere(normal, seed);
+
+        // Trace the bounce ray
+        // Fewer steps per bounce for performance
+        RayHit hit = traceRay(currentOrigin, bounceDir, 64);
+
+        if (hit.hit) {
+            // Update throughput with albedo (energy absorbed by surface)
+            throughput *= (bounce == 0) ? albedo : hit.albedo;
+
+            // Accumulate indirect lighting (simple diffuse term)
+            float ndotl = max(dot(hit.normal, -bounceDir), 0.0);
+
+            // Setup for next bounce
+            currentOrigin = hit.position + hit.normal * 0.002;
+            normal = hit.normal;
+            albedo = hit.albedo;
+        } else {
+            // Ray escaped to sky - add sky contribution
+            radiance += throughput * uBackgroundColor.rgb;
+            break;
+        }
+
+        // Russian roulette for path termination (optional performance optimization)
+        float rrProbability = max(throughput.r, max(throughput.g, throughput.b));
+        if (rrProbability < 0.1 && bounce > 1) {
+            break;
+        }
     }
-    else
-    {
-        // No hit, add background color
-        emission += energy * uBackgroundColor.rgb;
+
+    // If all bounces hit geometry, add some ambient term (prevents pure black)
+    if (length(radiance) < 0.001) {
+        // Small ambient
+        radiance = throughput * 0.05;
     }
 
-    return vec3(emission);
-
+    return radiance;
 }
 
 void main()
@@ -256,9 +325,10 @@ void main()
         vec3 rayDir = computeRayDirection(pixel, resolution);
 
         vec3 color = shadePoint(rayOrigin, rayDir, depth);
+        // vec3 color = shadePointSimple(rayOrigin, rayDir, depth);
 
         // contrast adjustment
-        color = pow(color, vec3(7));
+        // color = pow(color, vec3(7));
 
         // store depth in the alpha channel to do TAA later
         imageStore(uColorOutput, pixel, vec4(color, depth));
