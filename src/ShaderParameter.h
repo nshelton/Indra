@@ -24,22 +24,20 @@ public:
     /// @brief Reset to default value
     virtual void reset() = 0;
 
-    const std::string& getUniformName() const { return m_uniformName; }
-    const std::string& getDisplayName() const { return m_displayName; }
+    const std::string& getName() const { return m_name; }
 
     virtual void toJson(nlohmann::json& j) const = 0;
     virtual void fromJson(const nlohmann::json& j) = 0;
 
 protected:
-    std::string m_uniformName;
-    std::string m_displayName;
+    std::string m_name;
 };
 
 /// @brief Float parameter with slider
 class FloatParameter : public ShaderParameter
 {
 public:
-    FloatParameter(const char* displayName, const char* uniformName, float min, float max, float defaultVal);
+    FloatParameter(const char* name, float min, float max, float defaultVal);
 
     void uploadUniform(Shader* shader) const override;
     void drawGui() override;
@@ -60,7 +58,7 @@ private:
 class Vec3Parameter : public ShaderParameter
 {
 public:
-    Vec3Parameter(const char* displayName, const char* uniformName, float min, float max, const vec3& defaultVal);
+    Vec3Parameter(const char* name, float min, float max, const vec3& defaultVal);
 
     void uploadUniform(Shader* shader) const override;
     void drawGui() override;
@@ -81,7 +79,7 @@ private:
 class ColorParameter : public ShaderParameter
 {
 public:
-    ColorParameter(const char* displayName, const char* uniformName, const color& defaultVal);
+    ColorParameter(const char* name, const color& defaultVal);
 
     void uploadUniform(Shader* shader) const override;
     void drawGui() override;
@@ -100,7 +98,7 @@ private:
 class IntParameter : public ShaderParameter
 {
 public:
-    IntParameter(const char* displayName, const char* uniformName, int min, int max, int defaultVal);
+    IntParameter(const char* name, int min, int max, int defaultVal);
 
     void uploadUniform(Shader* shader) const override;
     void drawGui() override;

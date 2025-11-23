@@ -44,20 +44,6 @@ public:
 
 private:
     int m_associatedShaderRevisionId = -1;
-    // All shader parameters stored polymorphically
-    std::vector<std::unique_ptr<ShaderParameter>> m_parameters;
-
     // Fast lookup by name
-    std::unordered_map<std::string, ShaderParameter*> m_parameterMap;
-
-    /// @brief Helper to add a parameter
-    template<typename T, typename... Args>
-    T* addParameter(const std::string& name, Args&&... args)
-    {
-        auto param = std::make_unique<T>(std::forward<Args>(args)...);
-        T* ptr = param.get();
-        m_parameters.push_back(std::move(param));
-        m_parameterMap[name] = ptr;
-        return ptr;
-    }
+    std::unordered_map<std::string, std::unique_ptr<ShaderParameter>> m_parameterMap;
 };

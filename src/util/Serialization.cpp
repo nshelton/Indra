@@ -44,7 +44,7 @@ static void from_json(const json &j, color &c)
 namespace serialization
 {
 
-    static constexpr int kSchemaVersion = 1;
+    static constexpr int kSchemaVersion = 2;
 
     bool saveState(const ShaderState &state, const Camera &camera, const Renderer &renderer,
                      const std::string &filePath, std::string *errorOut)
