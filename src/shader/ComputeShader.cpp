@@ -128,7 +128,6 @@ bool ComputeShader::reload()
     LOG(INFO) << "Compute shader reload successful!";
 
     m_shaderRevisionId++;
-    m_uniformLocationCache.clear();
     return true;
 }
 

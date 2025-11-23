@@ -1,5 +1,5 @@
 #include "ShaderParameter.h"
-#include "render/ComputeShader.h"
+#include "shader/ComputeShader.h"
 #include <imgui.h>
 #include <glad/glad.h>
 #include <algorithm>
@@ -18,7 +18,7 @@ FloatParameter::FloatParameter(const char* displayName, const char* uniformName,
     m_uniformName = uniformName;
 }
 
-void FloatParameter::uploadUniform(ComputeShader* shader) const
+void FloatParameter::uploadUniform(Shader* shader) const
 {
     int location = shader->getUniformLocationCached(m_uniformName.c_str());
     if (location >= 0)
@@ -61,7 +61,7 @@ Vec3Parameter::Vec3Parameter(const char* displayName, const char* uniformName, f
     m_uniformName = uniformName;
 }
 
-void Vec3Parameter::uploadUniform(ComputeShader* shader) const
+void Vec3Parameter::uploadUniform(Shader* shader) const
 {
     int location = shader->getUniformLocationCached(m_uniformName.c_str());
     if (location >= 0)
@@ -109,7 +109,7 @@ ColorParameter::ColorParameter(const char* displayName, const char* uniformName,
     m_uniformName = uniformName;
 }
 
-void ColorParameter::uploadUniform(ComputeShader* shader) const
+void ColorParameter::uploadUniform(Shader* shader) const
 {
     int location = shader->getUniformLocationCached(m_uniformName.c_str());
     if (location >= 0)
@@ -160,7 +160,7 @@ IntParameter::IntParameter(const char* displayName, const char* uniformName, int
     m_uniformName = uniformName;
 }
 
-void IntParameter::uploadUniform(ComputeShader* shader) const
+void IntParameter::uploadUniform(Shader* shader) const
 {
     int location = shader->getUniformLocationCached(m_uniformName.c_str());
     if (location >= 0)

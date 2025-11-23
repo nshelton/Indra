@@ -14,12 +14,16 @@ public:
     virtual ~Shader();
 
     // Prevent copying
-    Shader(const Shader&) = delete;
-    Shader& operator=(const Shader&) = delete;
+    Shader(const Shader &) = delete;
+    Shader &operator=(const Shader &) = delete;
 
     /// @brief Reload shaders from the previously loaded file paths
     /// @return true if reload was successful
-    virtual bool reload() = 0;
+    virtual bool reload()
+    {
+        m_uniformLocationCache.clear();
+        return true;
+    }
 
     /// @brief Bind the shader program for rendering
     void use() const;
@@ -28,16 +32,33 @@ public:
     GLuint getProgram() const { return m_program; }
 
     /// @brief Get uniform location by name
-    GLint getUniformLocation(const char* name) const;
+    GLint getUniformLocation(const char *name) const;
 
     /// @brief Check if the program is valid and ready to use
     bool isValid() const { return m_program != 0 && m_isValid; }
 
     /// @brief Get last compilation/linking error message
-    const std::string& getLastError() const { return m_lastError; }
+    const std::string &getLastError() const { return m_lastError; }
 
     /// @brief Check if shader source files have been modified since last load
     virtual bool filesModified() const = 0;
+
+    int getUniformLocationCached(const char *name)
+    {
+        auto it = m_uniformLocationCache.find(name);
+        if (it != m_uniformLocationCache.end())
+        {
+            return it->second;
+        }
+        else
+        {
+            GLint location = getUniformLocation(name);
+            m_uniformLocationCache[name] = location;
+            return location;
+        }
+    }
+
+    const std::unordered_map<std::string, int>& sha() const { return m_uniformLocationCache; }
 
 protected:
     /// @brief Compile a shader from source code
@@ -45,7 +66,7 @@ protected:
     /// @param source The shader source code
     /// @param shaderName Name for error messages
     /// @return true if compilation succeeded
-    bool compileShader(GLuint shader, const char* source, const std::string& shaderName);
+    bool compileShader(GLuint shader, const char *source, const std::string &shaderName);
 
     /// @brief Link a shader program
     /// @param program The program object ID
@@ -55,23 +76,25 @@ protected:
     /// @brief Read a file into a string
     /// @param path Path to the file
     /// @return File contents, or empty string on error
-    std::string readFile(const std::string& path);
+    std::string readFile(const std::string &path);
 
     /// @brief Get the last modification time of a file
     /// @param path Path to the file
     /// @return File modification time
-    std::filesystem::file_time_type getFileModTime(const std::string& path) const;
+    std::filesystem::file_time_type getFileModTime(const std::string &path) const;
 
     /// @brief Preprocess shader source to handle #include directives
     /// @param source The original shader source code
     /// @param baseDir Directory of the file being processed (for relative includes)
     /// @param includedFiles Set of already included files (prevents circular includes)
     /// @return Preprocessed source code with includes resolved
-    std::string preprocessIncludes(const std::string& source,
-                                   const std::filesystem::path& baseDir,
-                                   std::set<std::string>& includedFiles);
+    std::string preprocessIncludes(const std::string &source,
+                                   const std::filesystem::path &baseDir,
+                                   std::set<std::string> &includedFiles);
 
     GLuint m_program;
     bool m_isValid;
     std::string m_lastError;
+
+    std::unordered_map<std::string, GLint> m_uniformLocationCache;
 };

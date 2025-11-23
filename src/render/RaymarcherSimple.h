@@ -4,7 +4,7 @@
 #include <memory>
 #include "core/core.h"
 #include "Camera.h"
-#include "ComputeShader.h"
+#include "shader/ComputeShader.h"
 #include "../ShaderState.h"
 
 /// @brief Hierarchical depth pyramid raymarcher

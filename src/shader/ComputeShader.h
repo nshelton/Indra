@@ -52,17 +52,6 @@ public:
 
     int getShaderRevisionId() const { return m_shaderRevisionId; }
 
-    int getUniformLocationCached(const char* name) {
-        auto it = m_uniformLocationCache.find(name);
-        if (it != m_uniformLocationCache.end()) {
-            return it->second;
-        } else {
-            GLint location = getUniformLocation(name);
-            m_uniformLocationCache[name] = location;
-            return location;
-        }
-    }
-
 private:
     std::string m_computePath;
     std::filesystem::file_time_type m_computeModTime;
@@ -70,8 +59,6 @@ private:
     int m_shaderRevisionId = 0;
     // Fallback source (if file can't be loaded)
     std::string m_fallbackComputeSource;
-
-    std::unordered_map<std::string, GLint> m_uniformLocationCache;
 
     // GPU timing
     mutable GLuint m_timerQuery[2] = {0, 0};  // Double-buffered queries

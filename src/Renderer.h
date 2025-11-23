@@ -27,22 +27,30 @@ public:
     void drawGui();
 
     // HDR postprocessing controls
-    void setExposure(float exposure) { if (m_postProcessor) m_postProcessor->setExposure(exposure); }
-    void setBloomStrength(float strength) { if (m_postProcessor) m_postProcessor->setBloomStrength(strength); }
+    void setExposure(float exposure)
+    {
+        if (m_postProcessor)
+            m_postProcessor->setExposure(exposure);
+    }
+    void setBloomStrength(float strength)
+    {
+        if (m_postProcessor)
+            m_postProcessor->setBloomStrength(strength);
+    }
 
     float getExposure() const { return m_postProcessor ? m_postProcessor->getExposure() : 1.0f; }
     float getBloomStrength() const { return m_postProcessor ? m_postProcessor->getBloomStrength() : 0.04f; }
 
     void fromJson(const nlohmann::json &j)
     {
-        m_lines.setLineWidth(j.value("lineWidth", 1.0f));
+        m_lines->setLineWidth(j.value("lineWidth", 1.0f));
         m_postProcessor->setExposure(j.value("exposure", 1.0f));
         m_postProcessor->setBloomStrength(j.value("bloomStrength", 0.04f));
     }
 
     void toJson(nlohmann::json &j) const
     {
-        j["lineWidth"] = m_lines.lineWidth();
+        j["lineWidth"] = m_lines->lineWidth();
         j["exposure"] = getExposure();
         j["bloomStrength"] = getBloomStrength();
     }
@@ -50,13 +58,17 @@ public:
     // Audio reactivity
 
     // Hot-reload shaders and kernels
-    bool reloadShaders() { return m_raymarcher.reloadShaders(); }
+    bool reloadShaders()
+    {
+        return m_raymarcher->reloadShaders() &&
+               m_postProcessor->reloadShaders();
+    }
 
 private:
     bool m_initialized{false};
 
-    LineRenderer m_lines{};
-    RaymarcherSimple m_raymarcher{};
+    std::unique_ptr<RaymarcherSimple> m_raymarcher;
+    std::unique_ptr<LineRenderer> m_lines;
     float m_time{0.0f};
 
     // HDR rendering

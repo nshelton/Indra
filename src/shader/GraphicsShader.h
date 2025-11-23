@@ -40,6 +40,8 @@ public:
     /// @brief Check if shader files have been modified since last load
     bool filesModified() const override;
 
+    GLint getUniformLocationCached(const char* name);
+
 private:
     std::string m_vertexPath;
     std::string m_fragmentPath;

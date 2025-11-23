@@ -2,6 +2,7 @@
 
 #include "Framebuffer.h"
 #include <glad/glad.h>
+#include "shader/GraphicsShader.h"
 #include <memory>
 
 class PostProcessor {
@@ -26,20 +27,32 @@ public:
     float getExposure() const { return m_exposure; }
     float getBloomStrength() const { return m_bloomStrength; }
 
+    bool reloadShaders()
+    {
+        bool success = true;
+        if (m_brightPassShader)
+            success &= m_brightPassShader->reload();
+        if (m_blurShader)
+            success &= m_blurShader->reload();
+        if (m_finalShader)
+            success &= m_finalShader->reload();
+        return success;
+    }
+
 private:
     void setupQuad();
     void createShaders();
     void renderQuad();
 
     // Shaders
-    GLuint m_brightPassShader = 0;
-    GLuint m_blurShader = 0;
-    GLuint m_finalShader = 0;
+    std::unique_ptr<GraphicsShader> m_brightPassShader = nullptr;
+    std::unique_ptr<GraphicsShader> m_blurShader = nullptr;
+    std::unique_ptr<GraphicsShader> m_finalShader = nullptr;
 
     // Framebuffers for bloom
-    std::unique_ptr<Framebuffer> m_brightPass;
-    std::unique_ptr<Framebuffer> m_blurH;
-    std::unique_ptr<Framebuffer> m_blurV;
+    std::unique_ptr<Framebuffer> m_brightnessBuffer;
+    std::unique_ptr<Framebuffer> m_blurHBuffer;
+    std::unique_ptr<Framebuffer> m_blurVBuffer;
 
     // Fullscreen quad
     GLuint m_quadVAO = 0;

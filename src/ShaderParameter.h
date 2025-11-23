@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/core.h"
+#include <shader/Shader.h>
 #include <string>
 #include <memory>
 #include <nlohmann/json.hpp>
@@ -15,7 +16,7 @@ public:
     virtual ~ShaderParameter() = default;
 
     /// @brief Upload this parameter to the shader
-    virtual void uploadUniform(ComputeShader* shader) const = 0;
+    virtual void uploadUniform(Shader* shader) const = 0;
 
     /// @brief Draw ImGui widget for this parameter
     virtual void drawGui() = 0;
@@ -40,7 +41,7 @@ class FloatParameter : public ShaderParameter
 public:
     FloatParameter(const char* displayName, const char* uniformName, float min, float max, float defaultVal);
 
-    void uploadUniform(ComputeShader* shader) const override;
+    void uploadUniform(Shader* shader) const override;
     void drawGui() override;
     void reset() override;
 
@@ -61,7 +62,7 @@ class Vec3Parameter : public ShaderParameter
 public:
     Vec3Parameter(const char* displayName, const char* uniformName, float min, float max, const vec3& defaultVal);
 
-    void uploadUniform(ComputeShader* shader) const override;
+    void uploadUniform(Shader* shader) const override;
     void drawGui() override;
     void reset() override;
     void toJson(nlohmann::json& j) const override;
@@ -82,7 +83,7 @@ class ColorParameter : public ShaderParameter
 public:
     ColorParameter(const char* displayName, const char* uniformName, const color& defaultVal);
 
-    void uploadUniform(ComputeShader* shader) const override;
+    void uploadUniform(Shader* shader) const override;
     void drawGui() override;
     void reset() override;
     void toJson(nlohmann::json& j) const override;
@@ -101,7 +102,7 @@ class IntParameter : public ShaderParameter
 public:
     IntParameter(const char* displayName, const char* uniformName, int min, int max, int defaultVal);
 
-    void uploadUniform(ComputeShader* shader) const override;
+    void uploadUniform(Shader* shader) const override;
     void drawGui() override;
     void reset() override;
     void toJson(nlohmann::json& j) const override;

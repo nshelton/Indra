@@ -46,5 +46,5 @@ void Renderer::drawGui()
     ImGui::Separator();
     ImGui::Text("GPU Performance");
 
-    m_raymarcher.drawGui();
+    m_raymarcher->drawGui();
 }

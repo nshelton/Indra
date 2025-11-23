@@ -98,6 +98,8 @@ bool GraphicsShader::loadFromSource(const char* vertexSource, const char* fragme
 
 bool GraphicsShader::reload()
 {
+    Shader::reload();
+
     if (m_vertexPath.empty() || m_fragmentPath.empty())
     {
         m_lastError = "Cannot reload: no file paths set";

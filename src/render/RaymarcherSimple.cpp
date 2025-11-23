@@ -351,6 +351,12 @@ bool RaymarcherSimple::reloadShaders()
 void RaymarcherSimple::drawGui()
 {
     ImGui::Separator();
+    ImGui::Text("m_baseDepthShader Uniform Locations:");
+    for (const auto &entry : m_baseDepthShader->sha())
+    {
+        ImGui::Text("%s: %d", entry.first.c_str(), entry.second);
+    }
+
     ImGui::Text("Raymarcher Simple GPU Timings (ms)");
 
     for (const auto &entry : m_lastExecutionTimes)
