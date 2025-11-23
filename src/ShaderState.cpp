@@ -71,8 +71,8 @@ void ShaderState::fromJson(const nlohmann::json &j)
 {
     for (const auto &paramJson : j)
     {
-        std::string displayName = paramJson.value("displayName", "");
-        ShaderParameter *param = getParameter(displayName);
+        std::string name = paramJson.value("name", "");
+        ShaderParameter *param = getParameter(name);
         if (param)
         {
             param->fromJson(paramJson);
