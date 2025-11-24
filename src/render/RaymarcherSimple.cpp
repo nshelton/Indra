@@ -24,10 +24,10 @@ void createTexture(GLuint &texture, GLenum internalFormat, int width, int height
 
 void RaymarcherSimple::createOutputTextures()
 {
-    createTexture(m_outputTexture, GL_RGBA16F, m_viewportWidth, m_viewportHeight, 1, GL_RGBA, GL_HALF_FLOAT);
-    createTexture(m_outputTextureSwap, GL_RGBA16F, m_viewportWidth, m_viewportHeight, 1, GL_RGBA, GL_HALF_FLOAT);
-    createTexture(m_currentShadedFrame, GL_RGBA16F, m_viewportWidth, m_viewportHeight, 1, GL_RGBA, GL_HALF_FLOAT);
-    LOG(INFO) << "RaymarcherSimple: Created output textures: " << m_viewportWidth << "x" << m_viewportHeight;
+    createTexture(m_outputTexture, GL_RGBA16F, m_viewportSize.x, m_viewportSize.y, 1, GL_RGBA, GL_HALF_FLOAT);
+    createTexture(m_outputTextureSwap, GL_RGBA16F, m_viewportSize.x, m_viewportSize.y, 1, GL_RGBA, GL_HALF_FLOAT);
+    createTexture(m_currentShadedFrame, GL_RGBA16F, m_viewportSize.x, m_viewportSize.y, 1, GL_RGBA, GL_HALF_FLOAT);
+    LOG(INFO) << "RaymarcherSimple: Created output textures: " << m_viewportSize.x << "x" << m_viewportSize.y;
 }
 
 void RaymarcherSimple::createDepthPyramid()
@@ -38,13 +38,13 @@ void RaymarcherSimple::createDepthPyramid()
     }
 
     // Calculate number of mip levels needed
-    int maxDim = std::max(m_viewportWidth, m_viewportHeight);
+    int maxDim = std::max(m_viewportSize.x, m_viewportSize.y);
     m_numLevels = 1 + static_cast<int>(std::floor(std::log2(maxDim)));
 
     // Create mipmapped R32F texture
     glGenTextures(1, &m_depthPyramid);
     glBindTexture(GL_TEXTURE_2D, m_depthPyramid);
-    glTexStorage2D(GL_TEXTURE_2D, m_numLevels, GL_R32F, m_viewportWidth, m_viewportHeight);
+    glTexStorage2D(GL_TEXTURE_2D, m_numLevels, GL_R32F, m_viewportSize.x, m_viewportSize.y);
     glGenerateMipmap(GL_TEXTURE_2D);
 
     // Set texture parameters
@@ -124,10 +124,9 @@ void RaymarcherSimple::shutdown()
 
 void RaymarcherSimple::setViewportSize(int width, int height)
 {
-    if (m_viewportWidth != width || m_viewportHeight != height)
+    if (m_viewportSize.x != width || m_viewportSize.y != height)
     {
-        m_viewportWidth = width;
-        m_viewportHeight = height;
+        m_viewportSize = vec2i(width, height);
         createDepthPyramid();
         createOutputTextures();
     }
@@ -135,7 +134,6 @@ void RaymarcherSimple::setViewportSize(int width, int height)
 
 void RaymarcherSimple::setCameraParameters(const Camera &camera, ComputeShader *shader)
 {
-
     shader->set("uCameraPos", camera.getPosition());
     shader->set("uCameraForward", camera.getForward());
     shader->set("uCameraRight", camera.getRight());
@@ -149,8 +147,7 @@ void RaymarcherSimple::setCameraParameters(const Camera &camera, ComputeShader *
 
     shader->set("uTanHalfFov", tanHalfFov);
     shader->set("uAspect", aspect);
-    shader->set("uViewportWidth", m_viewportWidth);
-    shader->set("uViewportHeight", m_viewportHeight);
+    shader->set("uViewportSize", m_viewportSize);
 }
 
 void RaymarcherSimple::raymarchDepthPyramid(const Camera &camera)
@@ -163,15 +160,13 @@ void RaymarcherSimple::raymarchDepthPyramid(const Camera &camera)
     m_baseDepthShader->use();
     setCameraParameters(camera, m_baseDepthShader.get());
 
-    m_baseDepthShader->UploadUniforms();
-
     // Bind current level for writing
     int location = m_baseDepthShader->getUniformLocationCached("uSeed4");
-    glUniform4f(location, 
-        static_cast<float>(std::rand()) / RAND_MAX,
-        static_cast<float>(std::rand()) / RAND_MAX,
-        static_cast<float>(std::rand()) / RAND_MAX,
-        static_cast<float>(std::rand()) / RAND_MAX);
+    glUniform4f(location,
+                static_cast<float>(std::rand()) / RAND_MAX,
+                static_cast<float>(std::rand()) / RAND_MAX,
+                static_cast<float>(std::rand()) / RAND_MAX,
+                static_cast<float>(std::rand()) / RAND_MAX);
 
     for (int level = TOP_LEVEL; level >= 0; level--)
     {
@@ -180,8 +175,8 @@ void RaymarcherSimple::raymarchDepthPyramid(const Camera &camera)
         int location = m_baseDepthShader->getUniformLocationCached("uLevel");
         glUniform1i(location, level);
 
-        int levelWidth = m_viewportWidth >> level;
-        int levelHeight = m_viewportHeight >> level;
+        int levelWidth = m_viewportSize.x >> level;
+        int levelHeight = m_viewportSize.y >> level;
 
         // Bind previous level for reading
         if (level < TOP_LEVEL)
@@ -225,8 +220,8 @@ void RaymarcherSimple::shadeFromDepth(const Camera &camera)
     glBindImageTexture(1, m_currentShadedFrame, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
 
     // Dispatch
-    int workGroupsX = (m_viewportWidth + 15) / 16;
-    int workGroupsY = (m_viewportHeight + 15) / 16;
+    int workGroupsX = (m_viewportSize.x + 15) / 16;
+    int workGroupsY = (m_viewportSize.y + 15) / 16;
     m_shadingShader->dispatch(workGroupsX, workGroupsY, 1);
 
     // Memory barrier
@@ -250,14 +245,12 @@ void RaymarcherSimple::reconstruction(const Camera &camera)
     glBindImageTexture(2, m_outputTexture, 0, GL_FALSE, 0, GL_WRITE_ONLY, GL_RGBA16F);
 
     matrix4 currentCameraTransform = camera.getViewMatrix();
-
     matrix4 thisFrameToLastFrame = m_lastCameraTransform * currentCameraTransform.inverse();
-    int location = m_reconstructionShader->getUniformLocationCached("uThisFrameToLastFrame");
-    glUniformMatrix4fv(location, 1, GL_TRUE, &thisFrameToLastFrame.m[0][0]);
+    m_reconstructionShader->set("uCurrentCameraTransform", thisFrameToLastFrame);
 
     // Dispatch
-    int workGroupsX = (m_viewportWidth + 15) / 16;
-    int workGroupsY = (m_viewportHeight + 15) / 16;
+    int workGroupsX = (m_viewportSize.x + 15) / 16;
+    int workGroupsY = (m_viewportSize.y + 15) / 16;
     m_reconstructionShader->dispatch(workGroupsX, workGroupsY, 1);
 
     // Memory barrier
@@ -342,33 +335,71 @@ bool RaymarcherSimple::reloadShaders()
     return allSuccess;
 }
 
+void DrawShaderGui(ComputeShader *shader, const std::string &shaderName)
+{
+    if (!shader)
+        return;
+
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 0.2f, 1.0f));
+    ImGui::Text("%s Uniform Locations:", shaderName.c_str());
+    ImGui::PopStyleColor();
+
+    shader->uniforms().forEach([](auto &u)
+                               {
+        ImGui::Text("%s: %d", u.name.c_str(), u.location);
+        ImGui::SameLine();
+        if constexpr (std::same_as<decltype(u.value), float>)
+        {
+            ImGui::Text("Value: %.3f", u.value);
+            if (u.hasMetadata)
+                ImGui::SliderFloat(("##" + u.name).c_str(), &u.value, u.minValue, u.maxValue);
+        }
+        else if constexpr (std::same_as<decltype(u.value), int>)
+        {
+            ImGui::Text("Value: %d", u.value);
+            if (u.hasMetadata)
+                ImGui::SliderInt(("##" + u.name).c_str(), &u.value, u.minValue, u.maxValue);
+        }
+        else if constexpr (std::same_as<decltype(u.value), vec2>)
+        {
+            ImGui::Text("Value: (%.3f, %.3f)", u.value.x, u.value.y);
+            if (u.hasMetadata)
+                ImGui::SliderFloat2(("##" + u.name).c_str(), &u.value.x, u.minValue.x, u.maxValue.x);
+        }
+        else if constexpr (std::same_as<decltype(u.value), vec2i>)
+        {
+            ImGui::Text("Value: (%d, %d)", u.value.x, u.value.y);
+            if (u.hasMetadata)
+                ImGui::SliderInt2(("##" + u.name).c_str(), &u.value.x, u.minValue.x, u.maxValue.x);
+        }
+        else if constexpr (std::same_as<decltype(u.value), vec3>)
+        {
+            ImGui::Text("Value: (%.3f, %.3f, %.3f)", u.value.x, u.value.y, u.value.z);
+            if (u.hasMetadata)
+                ImGui::SliderFloat3(("##" + u.name).c_str(), &u.value.x, u.minValue.x, u.maxValue.x);
+        }
+        else if constexpr (std::same_as<decltype(u.value), matrix4>)
+        {
+            ImGui::Text("Value: [matrix4]");
+        } });
+}
+
 void RaymarcherSimple::drawGui()
 {
+
     ImGui::Separator();
     ImGui::Text("Shaders:");
     ImGui::Separator();
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 0.2f, 1.0f));
-    ImGui::Text("m_baseDepthShader Uniform Locations:");
-    ImGui::PopStyleColor();
-    for (const auto &entry : m_baseDepthShader->uniforms())
+
+    if (!m_baseDepthShader || !m_shadingShader || !m_reconstructionShader)
     {
-        ImGui::Text("%s: %d", entry.first.c_str(), entry.second->location);
-    }
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 0.2f, 1.0f));
-    ImGui::Text("m_shadingShader Uniform Locations:");
-    ImGui::PopStyleColor();
-    for (const auto &entry : m_shadingShader->uniforms())
-    {
-        ImGui::Text("%s: %d", entry.first.c_str(), entry.second->location);
+        ImGui::Text("Shaders not initialized");
+        return;
     }
 
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 0.2f, 1.0f));
-    ImGui::Text("m_reconstructionShader Uniform Locations:");
-    ImGui::PopStyleColor();
-    for (const auto &entry : m_reconstructionShader->uniforms())
-    {
-        ImGui::Text("%s: %d", entry.first.c_str(), entry.second->location);
-    }
+    DrawShaderGui(m_baseDepthShader.get(), "m_baseDepthShader");
+    DrawShaderGui(m_shadingShader.get(), "m_shadingShader");
+    DrawShaderGui(m_reconstructionShader.get(), "m_reconstructionShader");
 
     ImGui::Separator();
     ImGui::Text("PERFORMANCE:");

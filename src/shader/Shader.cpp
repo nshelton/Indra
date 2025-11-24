@@ -81,7 +81,7 @@ bool parseFloat(const std::string &str, float &outValue)
 
 std::string Shader::extractUniformMetadata(std::string shaderSrc)
 {
-    m_uniformMap.clear();
+    m_uniforms.clear();
 
     // Matches: uniform T uVal;
     std::regex uniformRegex(
@@ -114,10 +114,9 @@ std::string Shader::extractUniformMetadata(std::string shaderSrc)
         }
         auto name = m[2].str();
 
-        m_uniformMap[name] = std::make_unique<ShaderUniform<float>>(name, minV, maxV, defV, 0.0f);
+        m_uniforms.add<float>(name, 0.0f, minV, maxV, defV, true);
         LOG(INFO) << "Registered float uniform with metadata: " << name << " ["
                   << "min=" << minV << ", max=" << maxV << ", def=" << defV << "]";
-        m_uniformMap[name]->hasMetadata = true;
         return true;
     };
 
@@ -145,27 +144,27 @@ std::string Shader::extractUniformMetadata(std::string shaderSrc)
 
             if (type == "float")
             {
-                m_uniformMap[name] = std::make_unique<ShaderUniform<float>>(name);
+                m_uniforms.add<float>(name);
                 LOG(INFO) << "Registered float uniform: " << name;
             }
             else if (type == "int")
             {
-                m_uniformMap[name] = std::make_unique<ShaderUniform<int>>(name);
+                m_uniforms.add<int>(name);
                 LOG(INFO) << "Registered int uniform: " << name;
             }
             else if (type == "vec2")
             {
-                m_uniformMap[name] = std::make_unique<ShaderUniform<vec2>>(name);
+                m_uniforms.add<vec2>(name);
                 LOG(INFO) << "Registered vec2 uniform: " << name;
             }
             else if (type == "vec3")
             {
-                m_uniformMap[name] = std::make_unique<ShaderUniform<vec3>>(name);
+                m_uniforms.add<vec3>(name);
                 LOG(INFO) << "Registered vec3 uniform: " << name;
             }
             else if (type == "mat4")
             {
-                m_uniformMap[name] = std::make_unique<ShaderUniform<matrix4>>(name);
+                m_uniforms.add<matrix4>(name);
                 LOG(INFO) << "Registered mat4 uniform: " << name;
             }
             else
@@ -240,75 +239,7 @@ bool Shader::setUniform(const std::string &name, const matrix4 &value)
     return true;
 }
 
-bool Shader::set(const std::string &name, float value)
-{
-    if (m_uniformMap.find(name) != m_uniformMap.end())
-    {
-        auto uniform = dynamic_cast<ShaderUniform<float> *>(m_uniformMap[name].get());
-        if (uniform)
-        {
-            uniform->value = value;
-            return true;
-        }
-    }
-    return false;
-}
-
-bool Shader::set(const std::string &name, int value)
-{
-    if (m_uniformMap.find(name) != m_uniformMap.end())
-    {
-        auto uniform = dynamic_cast<ShaderUniform<int> *>(m_uniformMap[name].get());
-        if (uniform)
-        {
-            uniform->value = value;
-            return true;
-        }
-    }
-    return false;
-}
-
-bool Shader::set(const std::string &name, const vec2 &value)
-{
-    if (m_uniformMap.find(name) != m_uniformMap.end())
-    {
-        auto uniform = dynamic_cast<ShaderUniform<vec2> *>(m_uniformMap[name].get());
-        if (uniform)
-        {
-            uniform->value = value;
-            return true;
-        }
-    }
-    return false;
-}
-
-bool Shader::set(const std::string &name, const vec3 &value)
-{
-    if (m_uniformMap.find(name) != m_uniformMap.end())
-    {
-        auto uniform = dynamic_cast<ShaderUniform<vec3> *>(m_uniformMap[name].get());
-        if (uniform)
-        {
-            uniform->value = value;
-            return true;
-        }
-    }
-    return false;
-}
-
-bool Shader::set(const std::string &name, const matrix4 &value)
-{
-    if (m_uniformMap.find(name) != m_uniformMap.end())
-    {
-        auto uniform = dynamic_cast<ShaderUniform<matrix4> *>(m_uniformMap[name].get());
-        if (uniform)
-        {
-            uniform->value = value;
-            return true;
-        }
-    }
-    return false;
-}
+// Note: set<T> is now a template in the header
 
 
 bool Shader::compileShader(GLuint shader, const char *source, const std::string &shaderName)

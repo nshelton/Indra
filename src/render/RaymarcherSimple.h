@@ -17,7 +17,7 @@ public:
     void draw(const Camera& camera);
 
     bool reloadShaders();
-    void uploadCameraParameters(const Camera& camera, ComputeShader* shader);
+    void setCameraParameters(const Camera& camera, ComputeShader* shader);
 
     void setViewportSize(int width, int height);
 
@@ -27,6 +27,7 @@ public:
     void drawGui();
 
 private:
+
     void createOutputTextures();
     void createDepthPyramid();
     void raymarchDepthPyramid(const Camera& camera);
@@ -50,8 +51,7 @@ private:
     matrix4 m_lastCameraTransform;
 
     // Viewport dimensions
-    int m_viewportWidth{1920};
-    int m_viewportHeight{1080};
+    vec2i m_viewportSize{1920, 1080};
 
     // GPU timing
     std::unordered_map<std::string, float> m_lastExecutionTimes;

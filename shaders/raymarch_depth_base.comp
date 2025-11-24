@@ -25,31 +25,19 @@ uniform float uTanHalfFov;
 uniform float uAspect;
 
 // Viewport
-uniform int uViewportWidth;
-uniform int uViewportHeight;
+uniform ivec2 uViewportSize;
 
 // Raymarching parameters
-uniform int uMaxSteps;
+uniform int uMaxSteps (1, 800, 100);
 uniform float uMaxDistance (1, 100, 10);
-uniform float uSurfaceEpsilon;
-uniform float uStepRatio;
+uniform float uSurfaceEpsilon (0.1, 5, 1.0);
+uniform float uStepRatio (0.1, 1, 1.0);
 
-uniform float uSphereRad (0.1, 5, 1.0);
-
-
-uniform float _LEVELS;
 uniform vec4 uSeed4;
 uniform int uLevel;
 
 #include "include/palette.glsl"
-// #include "include/distance.glsl"
-
-
-vec2 mapScene(vec3 p)
-{
-    float sphereDist = length(p) - uSphereRad;
-    return vec2(sphereDist, 1.0);
-}
+#include "include/distance.glsl"
 
 
 // ============================================================================

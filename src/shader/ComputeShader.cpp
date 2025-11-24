@@ -86,14 +86,11 @@ bool ComputeShader::loadFromSource(const char *computeSource)
 
     LOG(INFO) << "Compute shader program created successfully (ID: " << m_program << ")";
 
-    // update uniform loacations
-    for (auto &pair : m_uniformMap)
-    {
-        const std::string &name = pair.first;
-        auto &uniform = pair.second;
-        uniform->location = getUniformLocation(name.c_str());
-        LOG(INFO) << "Set uniform '" << name << "' location: " << uniform->location;
-    }
+    // update uniform locations
+    m_uniforms.forEach([&](auto &u)
+                       {
+        u.location = getUniformLocation(u.name.c_str());
+        LOG(INFO) << "Set uniform '" << u.name << "' location: " << u.location; });
 
     return true;
 }
@@ -156,6 +153,11 @@ void ComputeShader::dispatch(GLuint groupsX, GLuint groupsY, GLuint groupsZ)
 {
     if (!m_isValid || m_program == 0)
         return;
+
+    m_uniforms.forEach([](auto &u)
+    {
+        if (u.needsUpload)  u.upload();
+    });
 
     // Use double-buffered timer queries to avoid GPU stalls
     int queryIndex = m_currentQuery;

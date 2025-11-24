@@ -92,14 +92,12 @@ bool GraphicsShader::loadFromSource(const char *vertexSource, const char *fragme
     m_isValid = true;
     m_lastError.clear();
 
-    // update uniform loacations
-    for (auto &pair : m_uniformMap)
+    // update uniform locations
+    m_uniforms.forEach([&](auto &u)
     {
-        const std::string &name = pair.first;
-        auto &uniform = pair.second;
-        uniform->location = getUniformLocation(name.c_str());
-        LOG(INFO) << "Set uniform '" << name << "' location: " << uniform->location;
-    }
+        u.location = getUniformLocation(u.name.c_str());
+        LOG(INFO) << "Set uniform '" << u.name << "' location: " << u.location;
+    });
 
     LOG(INFO) << "Graphics shader program created successfully (ID: " << m_program << ")";
     return true;

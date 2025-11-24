@@ -1,6 +1,13 @@
 // ============================================================================
 // Distance Functions
 // ============================================================================
+// Fractal parameters
+uniform vec3 u_paramA;
+uniform vec3 u_paramB;
+uniform vec3 u_paramC;
+uniform vec3 u_paramD;
+uniform float _LEVELS;
+uniform float uSphereRad (0.1, 5, 1.0);
 
 vec2 pseudo_knightyan(vec3 p)
 {
@@ -238,9 +245,9 @@ vec2 fractal(vec3 p)
     return vec2(r / abs(dr), 0.0);  // distance estimate
 }
 
+
 vec2 mapScene(vec3 p)
 {
-    // return fractal(p);
-    // return MBOX(p);
-    return tglad(p);
+    float sphereDist = length(p) - uSphereRad;
+    return vec2(sphereDist, 1.0);
 }

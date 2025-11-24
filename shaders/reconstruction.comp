@@ -18,8 +18,8 @@ layout(rgba16f, binding = 2) writeonly uniform image2D uColorOutput;
 // ============================================================================
 
 // Viewport
-uniform int uViewportWidth;
-uniform int uViewportHeight;
+uniform ivec2 uViewportSize;
+
 uniform vec3 uCameraPos;
 uniform vec3 uCameraForward;
 uniform vec3 uCameraRight;
@@ -67,8 +67,8 @@ void main()
 
     // Transform to NDC
     vec4 ndcThisFrame = vec4(
-        (float(pixel.x) + 0.5) / float(uViewportWidth) * 2.0 - 1.0,
-        (float(pixel.y) + 0.5) / float(uViewportHeight) * 2.0 - 1.0,
+        (float(pixel.x) + 0.5) / float(uViewportSize.x) * 2.0 - 1.0,
+        (float(pixel.y) + 0.5) / float(uViewportSize.y) * 2.0 - 1.0,
         current.a * 2.0 - 1.0,
         1.0
     );

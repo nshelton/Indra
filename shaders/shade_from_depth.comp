@@ -28,20 +28,13 @@ uniform float uAspect;
 uniform vec4 uBackgroundColor;
 
 // Viewport
-uniform int uViewportWidth;
-uniform int uViewportHeight;
+uniform ivec2 uViewportSize;
 
 // Raymarching parameters
 uniform float uMaxDistance;
 uniform float uSurfaceEpsilon;
 uniform float uSeed;
 
-// Fractal parameters
-uniform vec3 u_paramA;
-uniform vec3 u_paramB;
-uniform vec3 u_paramC;
-uniform vec3 u_paramD;
-uniform float _LEVELS;
 
 #include "include/palette.glsl"
 #include "include/distance.glsl"

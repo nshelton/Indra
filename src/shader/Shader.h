@@ -5,37 +5,172 @@
 #include <string>
 #include <filesystem>
 #include <set>
+#include <tuple>
+#include <concepts>
 
-// class Shader;
-
-struct IUniform
-{
-    virtual ~IUniform() = default;
-    // virtual void upload(Shader& s) = 0;
-    GLuint location;
-    bool hasMetadata{false};
-    std::string name;
-};
-
+// Uniform data for a single type - no inheritance, no virtual
 template <typename T>
-struct ShaderUniform : public IUniform
+struct Uniform
 {
-    explicit ShaderUniform(std::string n) {}
-    explicit ShaderUniform(std::string n, T min, T max, T def, T val) : minValue(min),
-                                                                        maxValue(max),
-                                                                        defValue(def),
-                                                                        value(val)
+    std::string name;
+    GLuint location{0};
+    bool hasMetadata{false};
+    T value{};
+    T minValue{};
+    T maxValue{};
+    T defValue{};
+
+    bool needsUpload{true};
+
+    void upload()
     {
-        name = std::move(n);
+        if constexpr (std::same_as<T, float>)
+            glUniform1f(location, value);
+        else if constexpr (std::same_as<T, int>)
+            glUniform1i(location, value);
+        else if constexpr (std::same_as<T, vec2>)
+            glUniform2f(location, value.x, value.y);
+        else if constexpr (std::same_as<T, vec3>)
+            glUniform3f(location, value.x, value.y, value.z);
+        else if constexpr (std::same_as<T, matrix4>)
+            glUniformMatrix4fv(location, 1, GL_FALSE, &value.m[0][0]);
+        else
+            LOG(WARNING) << "Unsupported uniform type for '" << name << "'";
+
+        needsUpload = false;
     }
 
-    T value;
-    T minValue;
-    T maxValue;
-    T defValue;
+    void set(const T &val)
+    {
+        value = val;
+        needsUpload = true;
+    }
 };
 
-typedef std::unordered_map<std::string, std::unique_ptr<IUniform>> UniformMap;
+// Type-safe uniform store using tuple of maps
+template <typename... Ts>
+class UniformStore
+{
+    std::tuple<std::unordered_map<std::string, Uniform<Ts>>...> m_maps;
+
+public:
+    // Get the map for a specific type
+    template <typename T>
+    auto &map()
+    {
+        return std::get<std::unordered_map<std::string, Uniform<T>>>(m_maps);
+    }
+
+    template <typename T>
+    const auto &map() const
+    {
+        return std::get<std::unordered_map<std::string, Uniform<T>>>(m_maps);
+    }
+
+    // Get a uniform by name (throws if not found)
+    template <typename T>
+    Uniform<T> &get(const std::string &name)
+    {
+        return map<T>().at(name);
+    }
+
+    template <typename T>
+    const Uniform<T> &get(const std::string &name) const
+    {
+        return map<T>().at(name);
+    }
+
+    // Try to get a uniform, returns nullptr if not found
+    template <typename T>
+    Uniform<T> *tryGet(const std::string &name)
+    {
+        auto &m = map<T>();
+        auto it = m.find(name);
+        return it != m.end() ? &it->second : nullptr;
+    }
+
+    // Set value (creates uniform if it doesn't exist)
+    template <typename T>
+    void set(const std::string &name, const T &val)
+    {
+        map<T>()[name].value = val;
+    }
+
+    // Add a uniform with full metadata
+    template <typename T>
+    Uniform<T> &add(const std::string &name, T val = {}, T min = {}, T max = {}, T def = {}, bool hasMeta = false)
+    {
+        auto &u = map<T>()[name];
+        u.name = name;
+        u.value = val;
+        u.minValue = min;
+        u.maxValue = max;
+        u.defValue = def;
+        u.hasMetadata = hasMeta;
+        return u;
+    }
+
+    // Iterate over ALL uniforms with a lambda
+    // Lambda receives: Uniform<T>& for each uniform
+    template <typename F>
+    void forEach(F &&fn)
+    {
+        std::apply([&](auto &...maps)
+                   { (([&](auto &m)
+                       {
+                for (auto& [k, v] : m) fn(v); }(maps)),
+                      ...); },
+                   m_maps);
+    }
+
+    template <typename F>
+    void forEach(F &&fn) const
+    {
+        std::apply([&](const auto &...maps)
+                   { (([&](const auto &m)
+                       {
+                for (const auto& [k, v] : m) fn(v); }(maps)),
+                      ...); },
+                   m_maps);
+    }
+
+    // Clear all maps
+    void clear()
+    {
+        std::apply([](auto &...maps)
+                   { (maps.clear(), ...); },
+                   m_maps);
+    }
+
+    // Upload all uniforms to GPU
+    void uploadAll() const
+    {
+        forEach([](const auto &u)
+                { u.upload(); });
+    }
+
+    // Find a uniform location by name (searches all types)
+    // Returns -1 if not found
+    GLint getLocationByName(const std::string &name) const
+    {
+        GLint location = -1;
+        std::apply([&](const auto &...maps)
+                   {
+            (([&](const auto &m) {
+                if (location == -1) {
+                    auto it = m.find(name);
+                    if (it != m.end()) {
+                        location = it->second.location;
+                    }
+                }
+            }(maps)), ...); },
+                   m_maps);
+        return location;
+    }
+};
+
+// Define supported uniform types
+using ShaderUniforms = UniformStore<float, int, vec2, vec2i, vec3, matrix4>;
 
 /// @brief Base class for OpenGL shader programs
 /// Provides common functionality for shader compilation, linking, and hot-reloading
@@ -71,45 +206,41 @@ public:
     /// @brief Check if shader source files have been modified since last load
     virtual bool filesModified() const = 0;
 
-    int getUniformLocationCached(const char *name)
+    // Access the uniform store
+    ShaderUniforms &uniforms() { return m_uniforms; }
+    const ShaderUniforms &uniforms() const { return m_uniforms; }
+
+    // Get cached uniform location by name (searches all types)
+    GLint getUniformLocationCached(const char *name) const
     {
-        auto it = m_uniformMap.find(name);
-        if (it != m_uniformMap.end())
-        {
-            return it->second.get()->location;
-        }
-        else
-        {
-            return -1;
-        }
+        return m_uniforms.getLocationByName(name);
     }
 
-    const UniformMap &uniforms() const { return m_uniformMap; }
-
+    // Upload uniform to GPU immediately
     bool setUniform(const std::string &name, float value);
     bool setUniform(const std::string &name, int value);
     bool setUniform(const std::string &name, const vec2 &value);
     bool setUniform(const std::string &name, const vec3 &value);
     bool setUniform(const std::string &name, const matrix4 &value);
+    bool setUniform(const std::string &name, const vec2i &value);
 
-    bool set(const std::string &name, float value);
-    bool set(const std::string &name, int value);
-    bool set(const std::string &name, const vec2 &value);
-    bool set(const std::string &name, const vec3 &value);
-    bool set(const std::string &name, const matrix4 &value);
-
-    // overlaod [] operator to get uniform by name
-    IUniform *operator[](const std::string &name) 
+    // Set uniform value in store (call setUniform to upload)
+    template <typename T>
+    bool set(const std::string &name, const T &value)
     {
-        auto it = m_uniformMap.find(name);
-        if (it != m_uniformMap.end())
+        if (auto *u = m_uniforms.tryGet<T>(name))
         {
-            return it->second.get();
+            u->value = value;
+            return true;
         }
-        else
-        {
-            return nullptr;
-        }
+        return false;
+    }
+
+    // Get uniform pointer (nullptr if not found or wrong type)
+    template <typename T>
+    Uniform<T> *operator[](const std::string &name)
+    {
+        return m_uniforms.tryGet<T>(name);
     }
 
 protected:
@@ -151,5 +282,5 @@ protected:
     bool m_isValid;
     std::string m_lastError;
 
-    UniformMap m_uniformMap;
+    ShaderUniforms m_uniforms;
 };
