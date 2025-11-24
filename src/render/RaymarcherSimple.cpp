@@ -378,6 +378,10 @@ void DrawShaderGui(ComputeShader *shader, const std::string &shaderName)
             if (u.hasMetadata)
                 ImGui::SliderFloat3(("##" + u.name).c_str(), &u.value.x, u.minValue.x, u.maxValue.x);
         }
+        else if constexpr (std::same_as<decltype(u.value), color>)
+        {
+            ImGui::ColorEdit4(("##" + u.name).c_str(), &u.value.r);
+        }
         else if constexpr (std::same_as<decltype(u.value), matrix4>)
         {
             ImGui::Text("Value: [matrix4]");
@@ -407,5 +411,30 @@ void RaymarcherSimple::drawGui()
     for (const auto &entry : m_lastExecutionTimes)
     {
         ImGui::Text("%s: %.3f ms", entry.first.c_str(), entry.second);
+    }
+}
+
+nlohmann::json RaymarcherSimple::toJson() const
+{
+    nlohmann::json j;
+    j["baseDepthShader"] = m_baseDepthShader ? m_baseDepthShader->toJson() : nlohmann::json();
+    j["shadingShader"] = m_shadingShader ? m_shadingShader->toJson() : nlohmann::json();
+    j["reconstructionShader"] = m_reconstructionShader ? m_reconstructionShader->toJson() : nlohmann::json();
+    return j;
+}
+
+void RaymarcherSimple::fromJson(const nlohmann::json &j)
+{
+    if (m_baseDepthShader)
+    {
+        m_baseDepthShader->fromJson(j.value("baseDepthShader", nlohmann::json()));
+    }
+    if (m_shadingShader)
+    {
+        m_shadingShader->fromJson(j.value("shadingShader", nlohmann::json()));
+    }
+    if (m_reconstructionShader)
+    {
+        m_reconstructionShader->fromJson(j.value("reconstructionShader", nlohmann::json()));
     }
 }

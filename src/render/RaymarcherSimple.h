@@ -26,6 +26,9 @@ public:
 
     void drawGui();
 
+    nlohmann::json toJson() const;
+    void fromJson(const nlohmann::json &j);
+
 private:
 
     void createOutputTextures();

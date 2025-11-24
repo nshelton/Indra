@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vec3.h"
+#include <nlohmann/json_fwd.hpp>
 
 struct bbox3d
 {
@@ -42,3 +43,15 @@ struct bbox3d
     }
 
 };
+
+// JSON serialization
+inline void to_json(nlohmann::json& j, const bbox3d& b)
+{
+    j = nlohmann::json{{"min", b.min}, {"max", b.max}};
+}
+
+inline void from_json(const nlohmann::json& j, bbox3d& b)
+{
+    if (j.contains("min")) j.at("min").get_to(b.min);
+    if (j.contains("max")) j.at("max").get_to(b.max);
+}

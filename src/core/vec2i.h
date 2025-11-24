@@ -1,4 +1,5 @@
 #pragma once
+#include <nlohmann/json_fwd.hpp>
 
 struct vec2i {
     int x;
@@ -12,3 +13,15 @@ struct vec2i {
     vec2i operator*(int scalar) const { return vec2i(x * scalar, y * scalar); }
     vec2i operator/(int scalar) const { return vec2i(x / scalar, y / scalar); }
 };
+
+// JSON serialization
+inline void to_json(nlohmann::json& j, const vec2i& v)
+{
+    j = nlohmann::json{{"x", v.x}, {"y", v.y}};
+}
+
+inline void from_json(const nlohmann::json& j, vec2i& v)
+{
+    v.x = j.value("x", 0);
+    v.y = j.value("y", 0);
+}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "./vec3.h"
+#include <nlohmann/json_fwd.hpp>
 
 struct quaternion
 {
@@ -36,3 +37,17 @@ struct quaternion
     }
 
 };
+
+// JSON serialization
+inline void to_json(nlohmann::json& j, const quaternion& q)
+{
+    j = nlohmann::json{{"w", q.w}, {"x", q.x}, {"y", q.y}, {"z", q.z}};
+}
+
+inline void from_json(const nlohmann::json& j, quaternion& q)
+{
+    q.w = j.value("w", 1.0f);
+    q.x = j.value("x", 0.0f);
+    q.y = j.value("y", 0.0f);
+    q.z = j.value("z", 0.0f);
+}

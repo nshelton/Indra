@@ -16,7 +16,6 @@ void MainScreen::onAttach(App &app)
     google::SetStderrLogging(google::GLOG_INFO);
 
     m_app = &app;
-    // m_shaderState.reset();
     m_camera = Camera(vec3(10.0f, 10.0f, 10.0f), vec3(0.0f, 0.0f, 0.0f));
 
     // Initialize renderer now that OpenGL context is ready
@@ -41,7 +40,7 @@ void MainScreen::onAttach(App &app)
 
     // serialize at the end
     std::string error_string;
-    // bool loaded = serialization::loadState(m_shaderState, m_camera, m_renderer, STATE_FILE, &error_string);
+    bool loaded = serialization::loadState(m_camera, m_renderer, STATE_FILE, &error_string);
 }
 
 void MainScreen::onResize(int width, int height)
@@ -119,7 +118,7 @@ void MainScreen::onDetach()
 {
     // Save current state before shutting down
     std::string error_string;
-    // bool saved = serialization::saveState(m_shaderState, m_camera, m_renderer, STATE_FILE, &error_string);
+    bool saved = serialization::saveState(m_camera, m_renderer, STATE_FILE, &error_string);
 
     // Clean up any resources here
     m_renderer.shutdown();

@@ -2,6 +2,7 @@
 
 #include "vec3.h"
 #include "quaternion.h"
+#include <nlohmann/json_fwd.hpp>
 
 struct matrix4
 {
@@ -110,3 +111,22 @@ struct matrix4
         return result;
     }
 };
+
+// JSON serialization
+inline void to_json(nlohmann::json& j, const matrix4& mat)
+{
+    j = nlohmann::json::array();
+    for (int i = 0; i < 4; ++i)
+        for (int k = 0; k < 4; ++k)
+            j.push_back(mat.m[i][k]);
+}
+
+inline void from_json(const nlohmann::json& j, matrix4& mat)
+{
+    if (j.is_array() && j.size() == 16)
+    {
+        for (int i = 0; i < 4; ++i)
+            for (int k = 0; k < 4; ++k)
+                mat.m[i][k] = j[i * 4 + k].get<float>();
+    }
+}

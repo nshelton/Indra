@@ -3,6 +3,7 @@
 #include "vec3.h"
 #include "quaternion.h"
 #include "matrix4.h"
+#include <nlohmann/json_fwd.hpp>
 
 struct transform
 {
@@ -35,4 +36,17 @@ inline vec3 transform::apply(const vec3 &point) const {
 
 inline matrix4 transform::toMatrix() const {
     return matrix4::TRS(position, rotation, scale);
+}
+
+// JSON serialization
+inline void to_json(nlohmann::json& j, const transform& t)
+{
+    j = nlohmann::json{{"position", t.position}, {"rotation", t.rotation}, {"scale", t.scale}};
+}
+
+inline void from_json(const nlohmann::json& j, transform& t)
+{
+    if (j.contains("position")) j.at("position").get_to(t.position);
+    if (j.contains("rotation")) j.at("rotation").get_to(t.rotation);
+    if (j.contains("scale")) j.at("scale").get_to(t.scale);
 }

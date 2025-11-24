@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <nlohmann/json_fwd.hpp>
 
 // Color stores floats but in the range [0,1] for RGBA components
 struct color
@@ -24,3 +25,17 @@ struct color
     static color green() { return color(0, 1, 0, 1); }
     static color blue() { return color(0, 0, 1, 1); }
 };
+
+// JSON serialization
+inline void to_json(nlohmann::json& j, const color& c)
+{
+    j = nlohmann::json{{"r", c.r}, {"g", c.g}, {"b", c.b}, {"a", c.a}};
+}
+
+inline void from_json(const nlohmann::json& j, color& c)
+{
+    c.r = j.value("r", 1.0f);
+    c.g = j.value("g", 1.0f);
+    c.b = j.value("b", 1.0f);
+    c.a = j.value("a", 1.0f);
+}

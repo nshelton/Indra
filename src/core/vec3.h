@@ -1,5 +1,6 @@
 #pragma once
 #include <cmath>
+#include <nlohmann/json_fwd.hpp>
 
 struct vec3
 {
@@ -49,3 +50,16 @@ struct vec3
     }
 
 };
+
+// JSON serialization
+inline void to_json(nlohmann::json& j, const vec3& v)
+{
+    j = nlohmann::json{{"x", v.x}, {"y", v.y}, {"z", v.z}};
+}
+
+inline void from_json(const nlohmann::json& j, vec3& v)
+{
+    v.x = j.value("x", 0.0f);
+    v.y = j.value("y", 0.0f);
+    v.z = j.value("z", 0.0f);
+}

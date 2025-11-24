@@ -162,6 +162,11 @@ std::string Shader::extractUniformMetadata(std::string shaderSrc)
                 m_uniforms.add<vec3>(name);
                 LOG(INFO) << "Registered vec3 uniform: " << name;
             }
+            else if (type == "vec4")
+            {
+                m_uniforms.add<color>(name);
+                LOG(INFO) << "Registered vec4 uniform as color: " << name;
+            }
             else if (type == "mat4")
             {
                 m_uniforms.add<matrix4>(name);
@@ -178,69 +183,6 @@ std::string Shader::extractUniformMetadata(std::string shaderSrc)
 
     return out.str();
 }
-
-bool Shader::setUniform(const std::string &name, float value)
-{
-    int location = getUniformLocation(name.c_str());
-    if (location == -1)
-    {
-        LOG(WARNING) << "Uniform '" << name << "' not found in shader program.";
-        return false;
-    }
-    glUniform1f(location, value);
-    return true;
-}
-
-bool Shader::setUniform(const std::string &name, int value)
-{
-    int location = getUniformLocation(name.c_str());
-    if (location == -1)
-    {
-        LOG(WARNING) << "Uniform '" << name << "' not found in shader program.";
-        return false;
-    }
-    glUniform1i(location, value);
-    return true;
-}
-
-bool Shader::setUniform(const std::string &name, const vec2 &value)
-{
-    int location = getUniformLocation(name.c_str());
-    if (location == -1)
-    {
-        LOG(WARNING) << "Uniform '" << name << "' not found in shader program.";
-        return false;
-    }
-    glUniform2f(location, value.x, value.y);
-    return true;
-}
-
-bool Shader::setUniform(const std::string &name, const vec3 &value)
-{
-    int location = getUniformLocation(name.c_str());
-    if (location == -1)
-    {
-        LOG(WARNING) << "Uniform '" << name << "' not found in shader program.";
-        return false;
-    }
-    glUniform3f(location, value.x, value.y, value.z);
-    return true;
-}
-
-bool Shader::setUniform(const std::string &name, const matrix4 &value)
-{
-    int location = getUniformLocation(name.c_str());
-    if (location == -1)
-    {
-        LOG(WARNING) << "Uniform '" << name << "' not found in shader program.";
-        return false;
-    }
-    glUniformMatrix4fv(location, 1, GL_FALSE, &value.m[0][0]);
-    return true;
-}
-
-// Note: set<T> is now a template in the header
-
 
 bool Shader::compileShader(GLuint shader, const char *source, const std::string &shaderName)
 {
@@ -421,4 +363,47 @@ GLint Shader::getUniformLocation(const char *name) const
         return -1;
     }
     return glGetUniformLocation(m_program, name);
+}
+
+nlohmann::json Shader::toJson() const
+{
+    nlohmann::json j;
+    j["uniforms"] = nlohmann::json::object();
+
+    // Serialize each uniform
+    m_uniforms.forEach([&](const auto &u)
+                      {
+        nlohmann::json uniformJson;
+        uniformJson["location"] = u.location;
+        uniformJson["value"] = u.value;
+        j["uniforms"][u.name] = uniformJson; });
+
+    return j;
+}
+
+void Shader::fromJson(const nlohmann::json &j)
+{
+    if (j.contains("uniforms") && j["uniforms"].is_object())
+    {
+        for (auto it = j["uniforms"].begin(); it != j["uniforms"].end(); ++it)
+        {
+            const std::string &name = it.key();
+            const nlohmann::json &uniformJson = it.value();
+
+            // Try to find the uniform in the store
+            m_uniforms.forEach([&](auto &u)
+                              {
+                if (u.name == name)
+                {
+                    if (uniformJson.contains("location"))
+                    {
+                        u.location = uniformJson["location"].get<GLint>();
+                    }
+                    if (uniformJson.contains("value"))
+                    {
+                        u.value = uniformJson["value"].get<decltype(u.value)>();
+                    }
+                } });
+        }
+    }
 }

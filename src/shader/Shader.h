@@ -32,6 +32,10 @@ struct Uniform
             glUniform2f(location, value.x, value.y);
         else if constexpr (std::same_as<T, vec3>)
             glUniform3f(location, value.x, value.y, value.z);
+        else if constexpr (std::same_as<T, vec2i>)
+            glUniform2i(location, value.x, value.y);
+        else if constexpr (std::same_as<T, color>)
+            glUniform4f(location, value.r, value.g, value.b, value.a);
         else if constexpr (std::same_as<T, matrix4>)
             glUniformMatrix4fv(location, 1, GL_FALSE, &value.m[0][0]);
         else
@@ -170,7 +174,7 @@ public:
 };
 
 // Define supported uniform types
-using ShaderUniforms = UniformStore<float, int, vec2, vec2i, vec3, matrix4>;
+using ShaderUniforms = UniformStore<float, int, vec2, vec2i, vec3, matrix4, color>;
 
 /// @brief Base class for OpenGL shader programs
 /// Provides common functionality for shader compilation, linking, and hot-reloading
@@ -217,12 +221,13 @@ public:
     }
 
     // Upload uniform to GPU immediately
-    bool setUniform(const std::string &name, float value);
-    bool setUniform(const std::string &name, int value);
-    bool setUniform(const std::string &name, const vec2 &value);
-    bool setUniform(const std::string &name, const vec3 &value);
-    bool setUniform(const std::string &name, const matrix4 &value);
-    bool setUniform(const std::string &name, const vec2i &value);
+    // bool setUniform(const std::string &name, float value);
+    // bool setUniform(const std::string &name, int value);
+    // bool setUniform(const std::string &name, const vec2 &value);
+    // bool setUniform(const std::string &name, const vec3 &value);
+    // bool setUniform(const std::string &name, const matrix4 &value);
+    // bool setUniform(const std::string &name, const vec2i &value);
+
 
     // Set uniform value in store (call setUniform to upload)
     template <typename T>
@@ -242,6 +247,9 @@ public:
     {
         return m_uniforms.tryGet<T>(name);
     }
+
+    nlohmann::json toJson() const;
+    void fromJson(const nlohmann::json &j);
 
 protected:
     /// @brief Compile a shader from source code

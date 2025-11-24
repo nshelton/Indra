@@ -35,10 +35,8 @@ uniform float uMaxDistance;
 uniform float uSurfaceEpsilon;
 uniform float uSeed;
 
-
 #include "include/palette.glsl"
 #include "include/distance.glsl"
-
 
 // ============================================================================
 // Normal Estimation
@@ -309,6 +307,13 @@ void main()
     }
 
     float depth = imageLoad(uDepthMap, pixel).r;
+
+    // vec3 rayOrigin = uCameraPos;
+    vec3 rayDir = computeRayDirection(pixel, resolution);
+    // vec3 position = rayOrigin + rayDir * depth;
+    // vec3 normal = estimateNormal(position, depth);
+    imageStore(uColorOutput, pixel, vec4(0.5 * rayDir + 0.5, 1));
+    return;
 
     if (depth <= 0.0 || depth > uMaxDistance) {
         imageStore(uColorOutput, pixel, uBackgroundColor);

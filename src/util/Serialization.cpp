@@ -14,32 +14,6 @@
 
 using nlohmann::json;
 
-// JSON conversions for core types
-
-static void to_json(json &j, const vec2 &v)
-{
-    j = json{{"x", v.x}, {"y", v.y}};
-}
-
-static void from_json(const json &j, vec2 &v)
-{
-    v.x = j.value("x", 0.0f);
-    v.y = j.value("y", 0.0f);
-}
-
-static void to_json(json &j, const color &c)
-{
-    j = json{{"r", c.r}, {"g", c.g}, {"b", c.b}, {"a", c.a}};
-}
-
-static void from_json(const json &j, color &c)
-{
-    c.r = j.value("r", 1.0f);
-    c.g = j.value("g", 1.0f);
-    c.b = j.value("b", 1.0f);
-    c.a = j.value("a", 1.0f);
-}
-
 namespace serialization
 {
 

@@ -40,21 +40,25 @@ public:
     float getExposure() const { return m_postProcessor ? m_postProcessor->getExposure() : 1.0f; }
     float getBloomStrength() const { return m_postProcessor ? m_postProcessor->getBloomStrength() : 0.04f; }
 
-    void fromJson(const nlohmann::json &j)
-    {
-        m_lines->setLineWidth(j.value("lineWidth", 1.0f));
-        m_postProcessor->setExposure(j.value("exposure", 1.0f));
-        m_postProcessor->setBloomStrength(j.value("bloomStrength", 0.04f));
-    }
-
     void toJson(nlohmann::json &j) const
     {
         j["lineWidth"] = m_lines->lineWidth();
         j["exposure"] = getExposure();
         j["bloomStrength"] = getBloomStrength();
+        j["raymarcher"] = m_raymarcher->toJson();
     }
 
-    // Audio reactivity
+    void fromJson(const nlohmann::json &j)
+    {
+        if (j.contains("lineWidth"))
+            m_lines->setLineWidth(j["lineWidth"].get<float>());
+        if (j.contains("exposure"))
+            m_postProcessor->setExposure(j["exposure"].get<float>());
+        if (j.contains("bloomStrength"))
+            m_postProcessor->setBloomStrength(j["bloomStrength"].get<float>());
+        if (j.contains("raymarcher"))
+            m_raymarcher->fromJson(j["raymarcher"]);
+    }
 
     // Hot-reload shaders and kernels
     bool reloadShaders()
