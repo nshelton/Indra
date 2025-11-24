@@ -1,6 +1,4 @@
 #include "Interaction.h"
-
-#include "ShaderState.h"
 #include "Camera.h"
 #include "core/core.h"
 #include <glog/logging.h>
@@ -8,7 +6,7 @@
 #include <cmath>
 
 
-void InteractionController::onMouseDown(ShaderState &shaderState, Camera &camera, const vec2 &px)
+void InteractionController::onMouseDown(Camera &camera, const vec2 &px)
 {
     m_lastMousePos = px;
     m_state.mode = InteractionMode::Rotate;
@@ -20,7 +18,7 @@ void InteractionController::beginPan(Camera &camera, const vec2 &px)
     m_state.mode = InteractionMode::Pan;
 }
 
-void InteractionController::onCursorPos(ShaderState &shaderState, Camera &camera, const vec2 &px)
+void InteractionController::onCursorPos(Camera &camera, const vec2 &px)
 {
     vec2 delta = px - m_lastMousePos;
 
@@ -36,7 +34,7 @@ void InteractionController::onCursorPos(ShaderState &shaderState, Camera &camera
     m_lastMousePos = px;
 }
 
-void InteractionController::onScroll(ShaderState &shaderState, Camera &camera, float yoffset, const vec2 &px)
+void InteractionController::onScroll(Camera &camera, float yoffset, const vec2 &px)
 {
     m_trackball.zoom(camera, yoffset);
 }

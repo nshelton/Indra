@@ -6,7 +6,7 @@ message(STATUS "Setting CUDA compiler from CUDA_PATH: ${CMAKE_CUDA_COMPILER}")
 
 project(Indra LANGUAGES CXX CUDA)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # CUDA settings

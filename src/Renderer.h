@@ -8,7 +8,6 @@
 #include "render/TextureBlit.h"
 #include "Interaction.h"
 #include "Camera.h"
-#include "ShaderState.h"
 
 #include <memory>
 
@@ -22,7 +21,7 @@ public:
 
     void setSize(int width, int height);
 
-    void render(const Camera &camera, const ShaderState &shaderState, const InteractionState &uiState);
+    void render(const Camera &camera, const InteractionState &uiState);
     void shutdown();
     void drawGui();
 

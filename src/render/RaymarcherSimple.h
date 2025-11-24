@@ -5,7 +5,6 @@
 #include "core/core.h"
 #include "Camera.h"
 #include "shader/ComputeShader.h"
-#include "../ShaderState.h"
 
 /// @brief Hierarchical depth pyramid raymarcher
 /// Uses mipmapped depth texture for progressive refinement
@@ -15,7 +14,7 @@ public:
     bool init();
     void shutdown();
 
-    void draw(const Camera& camera, const ShaderState& shaderState);
+    void draw(const Camera& camera);
 
     bool reloadShaders();
     void uploadCameraParameters(const Camera& camera, ComputeShader* shader);
@@ -30,9 +29,9 @@ public:
 private:
     void createOutputTextures();
     void createDepthPyramid();
-    void raymarchDepthPyramid(const Camera& camera, const ShaderState& shaderState);
-    void shadeFromDepth(const Camera& camera, const ShaderState& shaderState);
-    void reconstruction(const Camera& camera, const ShaderState& shaderState);
+    void raymarchDepthPyramid(const Camera& camera);
+    void shadeFromDepth(const Camera& camera);
+    void reconstruction(const Camera& camera);
     // Compute shaders for hierarchical raymarching
     std::unique_ptr<ComputeShader> m_baseDepthShader;    // 4x4 base level
     std::unique_ptr<ComputeShader> m_shadingShader;      // Final shading pass

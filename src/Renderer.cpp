@@ -46,7 +46,7 @@ void Renderer::setSize(int width, int height)
    }
 }
 
-void Renderer::render(const Camera &camera, const ShaderState &shaderState, const InteractionState &uiState)
+void Renderer::render(const Camera &camera, const InteractionState &uiState)
 {
    if (!m_initialized)
    {
@@ -89,7 +89,7 @@ void Renderer::render(const Camera &camera, const ShaderState &shaderState, cons
    m_lines->draw(camera);
 
       // Raymarch to texture (doesn't draw to framebuffer directly)
-   m_raymarcher->draw(camera, shaderState);
+   m_raymarcher->draw(camera);
    // Blit raymarcher output to HDR framebuffer
    TextureBlit::blit(m_raymarcher->getOutputTexture());
 

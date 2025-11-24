@@ -30,21 +30,27 @@ uniform int uViewportHeight;
 
 // Raymarching parameters
 uniform int uMaxSteps;
-uniform float uMaxDistance;
+uniform float uMaxDistance (1, 100, 10);
 uniform float uSurfaceEpsilon;
 uniform float uStepRatio;
 
-// Fractal parameters
-uniform vec3 u_paramA;
-uniform vec3 u_paramB;
-uniform vec3 u_paramC;
-uniform vec3 u_paramD;
+uniform float uSphereRad (0.1, 5, 1.0);
+
+
 uniform float _LEVELS;
 uniform vec4 uSeed4;
 uniform int uLevel;
 
 #include "include/palette.glsl"
-#include "include/distance.glsl"
+// #include "include/distance.glsl"
+
+
+vec2 mapScene(vec3 p)
+{
+    float sphereDist = length(p) - uSphereRad;
+    return vec2(sphereDist, 1.0);
+}
+
 
 // ============================================================================
 // Ray Generation

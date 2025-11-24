@@ -6,7 +6,6 @@
 #include "core/core.h"
 #include "Camera.h"
 #include "shader/ComputeShader.h"
-#include "../ShaderState.h"
 
 class RaymarcherLottes
 {
@@ -14,7 +13,7 @@ public:
     bool init();
     void shutdown();
 
-    void draw(const Camera& camera, const ShaderState& shaderState);
+    void draw(const Camera& camera);
 
     bool reloadShaders();
 

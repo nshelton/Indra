@@ -6,13 +6,13 @@ GraphicsShader::GraphicsShader()
 {
 }
 
-void GraphicsShader::setFallbackSource(const std::string& vertexSource, const std::string& fragmentSource)
+void GraphicsShader::setFallbackSource(const std::string &vertexSource, const std::string &fragmentSource)
 {
     m_fallbackVertexSource = vertexSource;
     m_fallbackFragmentSource = fragmentSource;
 }
 
-bool GraphicsShader::loadFromFiles(const std::string& vertexPath, const std::string& fragmentPath)
+bool GraphicsShader::loadFromFiles(const std::string &vertexPath, const std::string &fragmentPath)
 {
     m_vertexPath = vertexPath;
     m_fragmentPath = fragmentPath;
@@ -40,7 +40,7 @@ bool GraphicsShader::loadFromFiles(const std::string& vertexPath, const std::str
     return loadFromSource(vertexSource.c_str(), fragmentSource.c_str());
 }
 
-bool GraphicsShader::loadFromSource(const char* vertexSource, const char* fragmentSource)
+bool GraphicsShader::loadFromSource(const char *vertexSource, const char *fragmentSource)
 {
     // Create shaders
     GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -92,14 +92,21 @@ bool GraphicsShader::loadFromSource(const char* vertexSource, const char* fragme
     m_isValid = true;
     m_lastError.clear();
 
+    // update uniform loacations
+    for (auto &pair : m_uniformMap)
+    {
+        const std::string &name = pair.first;
+        auto &uniform = pair.second;
+        uniform->location = getUniformLocation(name.c_str());
+        LOG(INFO) << "Set uniform '" << name << "' location: " << uniform->location;
+    }
+
     LOG(INFO) << "Graphics shader program created successfully (ID: " << m_program << ")";
     return true;
 }
 
 bool GraphicsShader::reload()
 {
-    Shader::reload();
-
     if (m_vertexPath.empty() || m_fragmentPath.empty())
     {
         m_lastError = "Cannot reload: no file paths set";
@@ -114,7 +121,7 @@ bool GraphicsShader::reload()
     bool oldValid = m_isValid;
 
     // Try to reload
-    m_program = 0;  // Temporarily clear so loadFromFiles creates a new one
+    m_program = 0; // Temporarily clear so loadFromFiles creates a new one
     bool success = loadFromFiles(m_vertexPath, m_fragmentPath);
 
     if (!success)

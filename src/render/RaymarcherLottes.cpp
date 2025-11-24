@@ -163,8 +163,7 @@ void RaymarcherLottes::setViewportSize(int width, int height)
 
 /// @brief Raymarch the scene to a framebuffer using a compute shader
 /// @param camera The camera to use for rendering
-/// @param shaderState The shader parameters to use for rendering
-void RaymarcherLottes::draw(const Camera &camera, const ShaderState &shaderState)
+void RaymarcherLottes::draw(const Camera &camera)
 {
     if (!m_computeShader || !m_computeShader->isValid() || m_outputTexture == 0)
         return;
@@ -210,7 +209,7 @@ void RaymarcherLottes::draw(const Camera &camera, const ShaderState &shaderState
     glUniform1f(m_computeShader->getUniformLocation("uAspect"), aspect);
 
     // Upload all shader parameters (scene + raymarching params) automatically
-    const_cast<ShaderState&>(shaderState).uploadUniforms(m_computeShader.get());
+    // const_cast<ShaderState&>(shaderState).uploadUniforms(m_computeShader.get());
 
     // Upload viewport parameters
     glUniform1i(m_computeShader->getUniformLocation("uViewportWidth"), m_viewportWidth);

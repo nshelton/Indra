@@ -1,9 +1,41 @@
 #pragma once
 
 #include <glad/glad.h>
+#include <core/core.h>
 #include <string>
 #include <filesystem>
 #include <set>
+
+// class Shader;
+
+struct IUniform
+{
+    virtual ~IUniform() = default;
+    // virtual void upload(Shader& s) = 0;
+    GLuint location;
+    bool hasMetadata{false};
+    std::string name;
+};
+
+template <typename T>
+struct ShaderUniform : public IUniform
+{
+    explicit ShaderUniform(std::string n) {}
+    explicit ShaderUniform(std::string n, T min, T max, T def, T val) : minValue(min),
+                                                                        maxValue(max),
+                                                                        defValue(def),
+                                                                        value(val)
+    {
+        name = std::move(n);
+    }
+
+    T value;
+    T minValue;
+    T maxValue;
+    T defValue;
+};
+
+typedef std::unordered_map<std::string, std::unique_ptr<IUniform>> UniformMap;
 
 /// @brief Base class for OpenGL shader programs
 /// Provides common functionality for shader compilation, linking, and hot-reloading
@@ -19,11 +51,7 @@ public:
 
     /// @brief Reload shaders from the previously loaded file paths
     /// @return true if reload was successful
-    virtual bool reload()
-    {
-        m_uniformLocationCache.clear();
-        return true;
-    }
+    virtual bool reload() = 0;
 
     /// @brief Bind the shader program for rendering
     void use() const;
@@ -45,20 +73,44 @@ public:
 
     int getUniformLocationCached(const char *name)
     {
-        auto it = m_uniformLocationCache.find(name);
-        if (it != m_uniformLocationCache.end())
+        auto it = m_uniformMap.find(name);
+        if (it != m_uniformMap.end())
         {
-            return it->second;
+            return it->second.get()->location;
         }
         else
         {
-            GLint location = getUniformLocation(name);
-            m_uniformLocationCache[name] = location;
-            return location;
+            return -1;
         }
     }
 
-    const std::unordered_map<std::string, int>& sha() const { return m_uniformLocationCache; }
+    const UniformMap &uniforms() const { return m_uniformMap; }
+
+    bool setUniform(const std::string &name, float value);
+    bool setUniform(const std::string &name, int value);
+    bool setUniform(const std::string &name, const vec2 &value);
+    bool setUniform(const std::string &name, const vec3 &value);
+    bool setUniform(const std::string &name, const matrix4 &value);
+
+    bool set(const std::string &name, float value);
+    bool set(const std::string &name, int value);
+    bool set(const std::string &name, const vec2 &value);
+    bool set(const std::string &name, const vec3 &value);
+    bool set(const std::string &name, const matrix4 &value);
+
+    // overlaod [] operator to get uniform by name
+    IUniform *operator[](const std::string &name) 
+    {
+        auto it = m_uniformMap.find(name);
+        if (it != m_uniformMap.end())
+        {
+            return it->second.get();
+        }
+        else
+        {
+            return nullptr;
+        }
+    }
 
 protected:
     /// @brief Compile a shader from source code
@@ -92,9 +144,12 @@ protected:
                                    const std::filesystem::path &baseDir,
                                    std::set<std::string> &includedFiles);
 
+    /// @brief Extract uniform metadata from shader source code
+    std::string extractUniformMetadata(std::string shaderSrc);
+
     GLuint m_program;
     bool m_isValid;
     std::string m_lastError;
 
-    std::unordered_map<std::string, GLint> m_uniformLocationCache;
+    UniformMap m_uniformMap;
 };

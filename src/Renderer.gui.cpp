@@ -42,9 +42,5 @@ void Renderer::drawGui()
 
     ImGui::SameLine();
 
-    // Display GPU performance metrics
-    ImGui::Separator();
-    ImGui::Text("GPU Performance");
-
     m_raymarcher->drawGui();
 }

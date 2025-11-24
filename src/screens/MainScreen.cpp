@@ -16,7 +16,7 @@ void MainScreen::onAttach(App &app)
     google::SetStderrLogging(google::GLOG_INFO);
 
     m_app = &app;
-    m_shaderState.reset();
+    // m_shaderState.reset();
     m_camera = Camera(vec3(10.0f, 10.0f, 10.0f), vec3(0.0f, 0.0f, 0.0f));
 
     // Initialize renderer now that OpenGL context is ready
@@ -41,15 +41,7 @@ void MainScreen::onAttach(App &app)
 
     // serialize at the end
     std::string error_string;
-    bool loaded = serialization::loadState(m_shaderState, m_camera, m_renderer, STATE_FILE, &error_string);
-    if (!loaded)
-    {
-        LOG(ERROR) << "Failed to load state: " << error_string;
-    }
-    else
-    {
-        LOG(INFO) << "Loaded state from " << STATE_FILE;
-    }
+    // bool loaded = serialization::loadState(m_shaderState, m_camera, m_renderer, STATE_FILE, &error_string);
 }
 
 void MainScreen::onResize(int width, int height)
@@ -120,18 +112,14 @@ void MainScreen::onUpdate(double dt)
 
 void MainScreen::onRender()
 {
-    m_renderer.render(m_camera, m_shaderState, m_interaction.state());
+    m_renderer.render(m_camera, m_interaction.state());
 }
 
 void MainScreen::onDetach()
 {
     // Save current state before shutting down
     std::string error_string;
-    bool saved = serialization::saveState(m_shaderState, m_camera, m_renderer, STATE_FILE, &error_string);
-    if (!saved)
-    {
-        LOG(ERROR) << "Failed to save state: " << error_string;
-    }
+    // bool saved = serialization::saveState(m_shaderState, m_camera, m_renderer, STATE_FILE, &error_string);
 
     // Clean up any resources here
     m_renderer.shutdown();
@@ -141,7 +129,7 @@ void MainScreen::onMouseButton(int button, int action, int /*mods*/, vec2 px)
 {
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
     {
-        m_interaction.onMouseDown(m_shaderState, m_camera, px);
+        m_interaction.onMouseDown(m_camera, px);
     }
     else if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE)
     {
@@ -160,10 +148,10 @@ void MainScreen::onMouseButton(int button, int action, int /*mods*/, vec2 px)
 
 void MainScreen::onCursorPos(vec2 px)
 {
-    m_interaction.onCursorPos(m_shaderState, m_camera, px);
+    m_interaction.onCursorPos(m_camera, px);
 }
 
 void MainScreen::onScroll(double xoffset, double yoffset, vec2 px)
 {
-    m_interaction.onScroll(m_shaderState, m_camera, static_cast<float>(yoffset), px);
+    m_interaction.onScroll(m_camera, static_cast<float>(yoffset), px);
 }

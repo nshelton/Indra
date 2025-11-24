@@ -133,45 +133,39 @@ void RaymarcherSimple::setViewportSize(int width, int height)
     }
 }
 
-void RaymarcherSimple::uploadCameraParameters(const Camera &camera, ComputeShader *shader)
+void RaymarcherSimple::setCameraParameters(const Camera &camera, ComputeShader *shader)
 {
-    vec3 cameraPos = camera.getPosition();
-    vec3 cameraForward = camera.getForward();
-    vec3 cameraRight = camera.getRight();
-    vec3 cameraUp = camera.getUp();
-    float fov = camera.getFov();
-    float aspect = camera.getAspect();
+
+    shader->set("uCameraPos", camera.getPosition());
+    shader->set("uCameraForward", camera.getForward());
+    shader->set("uCameraRight", camera.getRight());
+    shader->set("uCameraUp", camera.getUp());
 
     // Calculate tan(fov/2) for the shader
+    float fov = camera.getFov();
+    float aspect = camera.getAspect();
     float fovRadians = fov * 3.14159265359f / 180.0f;
     float tanHalfFov = std::tan(fovRadians / 2.0f);
 
-    glUniform3f(shader->getUniformLocation("uCameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
-    glUniform3f(shader->getUniformLocation("uCameraForward"), cameraForward.x, cameraForward.y, cameraForward.z);
-    glUniform3f(shader->getUniformLocation("uCameraRight"), cameraRight.x, cameraRight.y, cameraRight.z);
-    glUniform3f(shader->getUniformLocation("uCameraUp"), cameraUp.x, cameraUp.y, cameraUp.z);
-    glUniform1f(shader->getUniformLocation("uTanHalfFov"), tanHalfFov);
-    glUniform1f(shader->getUniformLocation("uAspect"), aspect);
-
-    // Upload viewport parameters
-    glUniform1i(shader->getUniformLocation("uViewportWidth"), m_viewportWidth);
-    glUniform1i(shader->getUniformLocation("uViewportHeight"), m_viewportHeight);
+    shader->set("uTanHalfFov", tanHalfFov);
+    shader->set("uAspect", aspect);
+    shader->set("uViewportWidth", m_viewportWidth);
+    shader->set("uViewportHeight", m_viewportHeight);
 }
 
-void RaymarcherSimple::raymarchDepthPyramid(const Camera &camera, const ShaderState &shaderState)
+void RaymarcherSimple::raymarchDepthPyramid(const Camera &camera)
 {
 
     if (!m_baseDepthShader || m_depthPyramid == 0)
         return;
 
     // Pass 1: Build depth pyramid (coarse to fine)
-
     m_baseDepthShader->use();
-    uploadCameraParameters(camera, m_baseDepthShader.get());
-    const_cast<ShaderState &>(shaderState).uploadUniforms(m_baseDepthShader.get());
+    setCameraParameters(camera, m_baseDepthShader.get());
+
+    m_baseDepthShader->UploadUniforms();
 
     // Bind current level for writing
-
     int location = m_baseDepthShader->getUniformLocationCached("uSeed4");
     glUniform4f(location, 
         static_cast<float>(std::rand()) / RAND_MAX,
@@ -213,14 +207,14 @@ void RaymarcherSimple::raymarchDepthPyramid(const Camera &camera, const ShaderSt
     }
 }
 
-void RaymarcherSimple::shadeFromDepth(const Camera &camera, const ShaderState &shaderState)
+void RaymarcherSimple::shadeFromDepth(const Camera &camera)
 {
     if (!m_shadingShader || m_depthPyramid == 0 || m_outputTexture == 0)
         return;
 
     m_shadingShader->use();
-    uploadCameraParameters(camera, m_shadingShader.get());
-    const_cast<ShaderState &>(shaderState).uploadUniforms(m_shadingShader.get());
+    setCameraParameters(camera, m_shadingShader.get());
+    // const_cast<ShaderState &>(shaderState).uploadUniforms(m_shadingShader.get());
 
     glUniform1f(m_shadingShader->getUniformLocationCached("uSeed"), static_cast<float>(std::rand()) / RAND_MAX);
 
@@ -239,14 +233,14 @@ void RaymarcherSimple::shadeFromDepth(const Camera &camera, const ShaderState &s
     glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
 }
 
-void RaymarcherSimple::reconstruction(const Camera &camera, const ShaderState &shaderState)
+void RaymarcherSimple::reconstruction(const Camera &camera)
 {
     if (!m_reconstructionShader || m_outputTexture == 0 || m_outputTextureSwap == 0)
         return;
 
     m_reconstructionShader->use();
-    uploadCameraParameters(camera, m_reconstructionShader.get());
-    const_cast<ShaderState &>(shaderState).uploadUniforms(m_reconstructionShader.get());
+    setCameraParameters(camera, m_reconstructionShader.get());
+    // const_cast<ShaderState &>(shaderState).uploadUniforms(m_reconstructionShader.get());
 
     // Bind input texture (shaded output) for reading
     glBindImageTexture(0, m_currentShadedFrame, 0, GL_FALSE, 0, GL_READ_ONLY, GL_RGBA16F);
@@ -275,7 +269,7 @@ void RaymarcherSimple::reconstruction(const Camera &camera, const ShaderState &s
     std::swap(m_outputTexture, m_outputTextureSwap);
 }
 
-void RaymarcherSimple::draw(const Camera &camera, const ShaderState &shaderState)
+void RaymarcherSimple::draw(const Camera &camera)
 {
     auto frameStart = std::chrono::steady_clock::now();
 
@@ -287,21 +281,21 @@ void RaymarcherSimple::draw(const Camera &camera, const ShaderState &shaderState
 
     // Pass 1: Build depth pyramid (coarse to fine)
     auto start = std::chrono::steady_clock::now();
-    raymarchDepthPyramid(camera, shaderState);
+    raymarchDepthPyramid(camera);
     auto end = std::chrono::steady_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     m_lastExecutionTimes["raymarchDepthPyramid"] = duration.count() / 1000.0f;
 
     // Pass 2: Shade from depth
     start = std::chrono::steady_clock::now();
-    shadeFromDepth(camera, shaderState);
+    shadeFromDepth(camera);
     end = std::chrono::steady_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     m_lastExecutionTimes["shadeFromDepth"] = duration.count() / 1000.0f;
 
     // Pass 3: Reconstruction
     start = std::chrono::steady_clock::now();
-    reconstruction(camera, shaderState);
+    reconstruction(camera);
     end = std::chrono::steady_clock::now();
     duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
     m_lastExecutionTimes["reconstruction"] = duration.count() / 1000.0f;
@@ -351,13 +345,33 @@ bool RaymarcherSimple::reloadShaders()
 void RaymarcherSimple::drawGui()
 {
     ImGui::Separator();
+    ImGui::Text("Shaders:");
+    ImGui::Separator();
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 0.2f, 1.0f));
     ImGui::Text("m_baseDepthShader Uniform Locations:");
-    for (const auto &entry : m_baseDepthShader->sha())
+    ImGui::PopStyleColor();
+    for (const auto &entry : m_baseDepthShader->uniforms())
     {
-        ImGui::Text("%s: %d", entry.first.c_str(), entry.second);
+        ImGui::Text("%s: %d", entry.first.c_str(), entry.second->location);
+    }
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 0.2f, 1.0f));
+    ImGui::Text("m_shadingShader Uniform Locations:");
+    ImGui::PopStyleColor();
+    for (const auto &entry : m_shadingShader->uniforms())
+    {
+        ImGui::Text("%s: %d", entry.first.c_str(), entry.second->location);
     }
 
-    ImGui::Text("Raymarcher Simple GPU Timings (ms)");
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.8f, 0.8f, 0.2f, 1.0f));
+    ImGui::Text("m_reconstructionShader Uniform Locations:");
+    ImGui::PopStyleColor();
+    for (const auto &entry : m_reconstructionShader->uniforms())
+    {
+        ImGui::Text("%s: %d", entry.first.c_str(), entry.second->location);
+    }
+
+    ImGui::Separator();
+    ImGui::Text("PERFORMANCE:");
 
     for (const auto &entry : m_lastExecutionTimes)
     {

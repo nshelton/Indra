@@ -85,6 +85,16 @@ bool ComputeShader::loadFromSource(const char *computeSource)
     m_lastError.clear();
 
     LOG(INFO) << "Compute shader program created successfully (ID: " << m_program << ")";
+
+    // update uniform loacations
+    for (auto &pair : m_uniformMap)
+    {
+        const std::string &name = pair.first;
+        auto &uniform = pair.second;
+        uniform->location = getUniformLocation(name.c_str());
+        LOG(INFO) << "Set uniform '" << name << "' location: " << uniform->location;
+    }
+
     return true;
 }
 

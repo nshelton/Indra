@@ -6,7 +6,6 @@
 
 #include <nlohmann/json.hpp>
 
-#include "ShaderState.h"
 #include "core/Core.h"
 
 #include "Camera.h"
@@ -46,13 +45,13 @@ namespace serialization
 
     static constexpr int kSchemaVersion = 2;
 
-    bool saveState(const ShaderState &state, const Camera &camera, const Renderer &renderer,
-                     const std::string &filePath, std::string *errorOut)
+    bool saveState(const Camera &camera, const Renderer &renderer,
+                   const std::string &filePath, std::string *errorOut)
     {
         json j;
         j["schemaVersion"] = kSchemaVersion;
 
-        state.toJson(j["shaderState"]);
+        // state.toJson(j["shaderState"]);
         camera.toJson(j["camera"]);
         renderer.toJson(j["renderer"]);
 
@@ -66,8 +65,8 @@ namespace serialization
         return true;
     }
 
-    bool loadState(ShaderState &state, Camera &camera, Renderer &renderer,
-                     const std::string &filePath, std::string *errorOut)
+    bool loadState(Camera &camera, Renderer &renderer,
+                   const std::string &filePath, std::string *errorOut)
     {
         std::ifstream file(filePath);
         if (!file.is_open())
@@ -94,7 +93,7 @@ namespace serialization
             return false;
         }
 
-        state.fromJson(j["shaderState"]);
+        // state.fromJson(j["shaderState"]);
         camera.fromJson(j["camera"]);
         renderer.fromJson(j["renderer"]);
 
