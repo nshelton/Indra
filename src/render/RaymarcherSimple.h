@@ -6,6 +6,22 @@
 #include "Camera.h"
 #include "shader/ComputeShader.h"
 
+enum class RenderMode
+{
+    Simple,        // Base depth + simple shade (no reconstruction)
+    DepthPyramid,  // Full depth pyramid + shade (no reconstruction)
+    Full           // Depth pyramid + shade + reconstruction
+};
+
+struct RenderConfig
+{
+    RenderMode mode = RenderMode::Simple;
+    bool enablePostprocessing = true;
+
+    nlohmann::json toJson() const;
+    void fromJson(const nlohmann::json& j);
+};
+
 /// @brief Hierarchical depth pyramid raymarcher
 /// Uses mipmapped depth texture for progressive refinement
 class RaymarcherSimple
@@ -29,8 +45,16 @@ public:
     nlohmann::json toJson() const;
     void fromJson(const nlohmann::json &j);
 
-private:
+    RenderConfig& config() { return m_config; }
+    const RenderConfig& config() const { return m_config; }
 
+private:
+    // Render mode implementations
+    void drawSimple(const Camera& camera);
+    void drawDepthPyramid(const Camera& camera);
+    void drawFull(const Camera& camera);
+
+    // Helper methods
     void createOutputTextures();
     void createDepthPyramid();
     void raymarchDepthPyramid(const Camera& camera);
@@ -58,4 +82,7 @@ private:
 
     // GPU timing
     std::unordered_map<std::string, float> m_lastExecutionTimes;
+
+    // Render configuration
+    RenderConfig m_config;
 };

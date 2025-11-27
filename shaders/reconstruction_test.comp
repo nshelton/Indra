@@ -6,17 +6,20 @@ layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 // Buffers and Textures
 // ============================================================================
 
-// Depth output (single channel R32F)
-layout(r32f, binding = 0) readonly uniform image2D uPreviousLevel;
-layout(r32f, binding = 1) writeonly uniform image2D uDepthOutput;
+// Depth input (from raymarching passes)
+layout(rgba16f, binding = 0) readonly uniform image2D u_thisFrameShaded;
+layout(rgba16f, binding = 1) readonly uniform image2D u_lastFrameShaded;
+
+// Color output
+layout(rgba16f, binding = 2) writeonly uniform image2D uColorOutput;
 
 // ============================================================================
 // Uniforms
 // ============================================================================
 
-#define TOP_LEVEL 7
+// Viewport
+uniform ivec2 uViewportSize;
 
-// Camera
 uniform vec3 uCameraPos;
 uniform vec3 uCameraForward;
 uniform vec3 uCameraRight;
@@ -24,43 +27,36 @@ uniform vec3 uCameraUp;
 uniform float uTanHalfFov;
 uniform float uAspect;
 
-// Raymarching parameters
-uniform int uMaxSteps (1, 800, 100);
-uniform float uMaxDistance (1, 100, 10);
-uniform float uSurfaceEpsilon (0.1, 5, 1.0);
-uniform float uStepRatio (0.1, 1, 1.0);
-
-uniform vec3 uSeed3;
-uniform int uLevel;
-
-#include "include/palette.glsl"
-#include "include/distance.glsl"
-
-
-// ============================================================================
-// Ray Generation
-// ============================================================================
-
 vec3 computeRayDirection(ivec2 pixel, ivec2 resolution) {
     vec2 uv = (vec2(pixel) + vec2(0.5)) / vec2(resolution);
-    // uv += 0.5 * (uSeed4.xy - 0.5f) / vec2(resolution);
     float ndcX = uv.x * 2.0 - 1.0;
     float ndcY = 1.0 - uv.y * 2.0;
 
-    return normalize(
-        uCameraForward +
-        ndcX * uTanHalfFov * uAspect * uCameraRight +
-        -ndcY * uTanHalfFov * uCameraUp
-    );
+    return normalize( vec3(
+        ndcX * uTanHalfFov * uAspect,
+        -ndcY * uTanHalfFov,
+        -1
+    ));
 }
 
-// ============================================================================
-// Base Level Depth Raymarcher (from scratch)
-// ============================================================================
+vec2 projectToPixel(vec3 localPos, ivec2 resolution) {
+    // Transform world position to camera/view space
+    // Perspective divide
+    float ndcX = -localPos.x / (localPos.z * uTanHalfFov * uAspect);
+    float ndcY = localPos.y / (localPos.z * uTanHalfFov);
+    // NDC to UV to pixel
+    vec2 uv = vec2(
+        (ndcX + 1.0) * 0.5,
+        (1.0 - ndcY) * 0.5
+    );
+    return uv * vec2(resolution) - 0.5;
+}
+
+uniform mat4 uThisFrameToLastFrame;
 
 void main()
 {
-    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+   ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
     ivec2 resolution = imageSize(uDepthOutput);
 
     // Bounds check
@@ -74,14 +70,6 @@ void main()
     vec3 rayOrigin = uCameraPos;
 
     float depth = 0.0;
-
-    if (uLevel < TOP_LEVEL)
-    {
-        // Read previous level depth (nearest neighbor upsampling)
-        ivec2 parentPixel = pixel / 2;
-        float parentDepth = imageLoad(uPreviousLevel, parentPixel).r * 0.99;
-        depth = parentDepth;
-    }
 
     // Raymarch from scratch
     bool hitSurface = false;

@@ -309,10 +309,10 @@ void main()
     float depth = imageLoad(uDepthMap, pixel).r;
 
     // vec3 rayOrigin = uCameraPos;
-    vec3 rayDir = computeRayDirection(pixel, resolution);
+    // vec3 rayDir = computeRayDirection(pixel, resolution);
     // vec3 position = rayOrigin + rayDir * depth;
     // vec3 normal = estimateNormal(position, depth);
-    imageStore(uColorOutput, pixel, vec4(0.5 * rayDir + 0.5, 1));
+    imageStore(uColorOutput, pixel, uBackgroundColor);
     return;
 
     if (depth <= 0.0 || depth > uMaxDistance) {
@@ -322,8 +322,8 @@ void main()
         vec3 rayOrigin = uCameraPos;
         vec3 rayDir = computeRayDirection(pixel, resolution);
 
-        vec3 color = shadePoint(rayOrigin, rayDir, depth);
-        // vec3 color = shadePointSimple(rayOrigin, rayDir, depth);
+        // vec3 color = shadePoint(rayOrigin, rayDir, depth);
+        vec3 color = shadePointSimple(rayOrigin, rayDir, depth);
 
         // contrast adjustment
         // color = pow(color, vec3(7));

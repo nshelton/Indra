@@ -68,76 +68,76 @@ void main()
     imageStore(uColorOutput, pixel, current);
     return;
 
-    // Transform to NDC
-    vec4 ndcThisFrame = vec4(
-        (float(pixel.x) + 0.5) / float(uViewportSize.x) * 2.0 - 1.0,
-        (float(pixel.y) + 0.5) / float(uViewportSize.y) * 2.0 - 1.0,
-        current.a * 2.0 - 1.0,
-        1.0
-    );
+//     // Transform to NDC
+//     vec4 ndcThisFrame = vec4(
+//         (float(pixel.x) + 0.5) / float(uViewportSize.x) * 2.0 - 1.0,
+//         (float(pixel.y) + 0.5) / float(uViewportSize.y) * 2.0 - 1.0,
+//         current.a * 2.0 - 1.0,
+//         1.0
+//     );
 
-    // Reproject to last frame
-    vec3 thisFrameCamPos = computeRayDirection(pixel, resolution) * current.a;
+//     // Reproject to last frame
+//     vec3 thisFrameCamPos = computeRayDirection(pixel, resolution) * current.a;
 
-    vec3 lastFrameCameraPos = (uThisFrameToLastFrame * vec4(thisFrameCamPos, 1.0)).xyz;
+//     vec3 lastFrameCameraPos = (uThisFrameToLastFrame * vec4(thisFrameCamPos, 1.0)).xyz;
 
-    vec2 lastPixel = projectToPixel(lastFrameCameraPos, resolution);
+//     vec2 lastPixel = projectToPixel(lastFrameCameraPos, resolution);
 
-    // Bounds check
-    if (lastPixel.x < 0.0 || lastPixel.x > float(resolution.x) ||
-        lastPixel.y < 0.0 || lastPixel.y > float(resolution.y)) {
-        imageStore(uColorOutput, pixel, current);
-        return;
-    }
-    ivec2 lastPixelInt = ivec2(floor(lastPixel));
-    vec2 fract = lastPixel - vec2(lastPixelInt);
-    // Convert UV to pixel coordinates (for bilinear interpolation)
+//     // Bounds check
+//     if (lastPixel.x < 0.0 || lastPixel.x > float(resolution.x) ||
+//         lastPixel.y < 0.0 || lastPixel.y > float(resolution.y)) {
+//         imageStore(uColorOutput, pixel, current);
+//         return;
+//     }
+//     ivec2 lastPixelInt = ivec2(floor(lastPixel));
+//     vec2 fract = lastPixel - vec2(lastPixelInt);
+//     // Convert UV to pixel coordinates (for bilinear interpolation)
 
-    // // Bilinear sample (manual since using images)
-    vec4 s00 = imageLoad(u_lastFrameShaded, lastPixelInt + ivec2(0, 0));
-    vec4 s10 = imageLoad(u_lastFrameShaded, lastPixelInt + ivec2(1, 0));
-    vec4 s01 = imageLoad(u_lastFrameShaded, lastPixelInt + ivec2(0, 1));
-    vec4 s11 = imageLoad(u_lastFrameShaded, lastPixelInt + ivec2(1, 1));
+//     // // Bilinear sample (manual since using images)
+//     vec4 s00 = imageLoad(u_lastFrameShaded, lastPixelInt + ivec2(0, 0));
+//     vec4 s10 = imageLoad(u_lastFrameShaded, lastPixelInt + ivec2(1, 0));
+//     vec4 s01 = imageLoad(u_lastFrameShaded, lastPixelInt + ivec2(0, 1));
+//     vec4 s11 = imageLoad(u_lastFrameShaded, lastPixelInt + ivec2(1, 1));
 
-    vec4 last = mix(
-        mix(s00, s10, fract.x),
-        mix(s01, s11, fract.x),
-        fract.y
-    );
+//     vec4 last = mix(
+//         mix(s00, s10, fract.x),
+//         mix(s01, s11, fract.x),
+//         fract.y
+//     );
 
-  // Neighborhood clamping
-    vec3 colorMin = vec3(1e10);
-    vec3 colorMax = vec3(-1e10);
+//   // Neighborhood clamping
+//     vec3 colorMin = vec3(1e10);
+//     vec3 colorMax = vec3(-1e10);
 
-    for (int y = -1; y <= 1; y++) {
-        for (int x = -1; x <= 1; x++) {
-            ivec2 offset = pixel + ivec2(x, y);
-            if (offset.x >= 0 && offset.x < resolution.x &&
-                offset.y >= 0 && offset.y < resolution.y) {
-                vec3 neighborColor = imageLoad(u_thisFrameShaded, offset).rgb;
-                colorMin = min(colorMin, neighborColor);
-                colorMax = max(colorMax, neighborColor);
-            }
-        }
-    }
-    vec3 clampedHistory = clamp(last.rgb, colorMin, colorMax*2);
-    // vec3 clampedHistory = last.rgb;
-    float depthDifference = abs(last.a - current.a);
+//     for (int y = -1; y <= 1; y++) {
+//         for (int x = -1; x <= 1; x++) {
+//             ivec2 offset = pixel + ivec2(x, y);
+//             if (offset.x >= 0 && offset.x < resolution.x &&
+//                 offset.y >= 0 && offset.y < resolution.y) {
+//                 vec3 neighborColor = imageLoad(u_thisFrameShaded, offset).rgb;
+//                 colorMin = min(colorMin, neighborColor);
+//                 colorMax = max(colorMax, neighborColor);
+//             }
+//         }
+//     }
+//     vec3 clampedHistory = clamp(last.rgb, colorMin, colorMax*2);
+//     // vec3 clampedHistory = last.rgb;
+//     float depthDifference = abs(last.a - current.a);
 
-    // float blendFactor = 1 - exp(-depthDifference * 20.0);
-    float blendFactor = depthDifference < 0.01 ? 0.01 : 0.5;
-    blendFactor = clamp(blendFactor, 0.0, 1.0);
-    // blendFactor = 0.1;
+//     // float blendFactor = 1 - exp(-depthDifference * 20.0);
+//     float blendFactor = depthDifference < 0.01 ? 0.01 : 0.5;
+//     blendFactor = clamp(blendFactor, 0.0, 1.0);
+//     // blendFactor = 0.1;
 
-    vec3 blendedColor = mix(clampedHistory.rgb, current.rgb,  blendFactor);
-    // blendedColor.r = blendFactor;
-    // Adaptive blend based on depth difference (simple disocclusion detection)
-    vec4 result = vec4(blendedColor, current.a);
+//     vec3 blendedColor = mix(clampedHistory.rgb, current.rgb,  blendFactor);
+//     // blendedColor.r = blendFactor;
+//     // Adaptive blend based on depth difference (simple disocclusion detection)
+//     vec4 result = vec4(blendedColor, current.a);
 
-    //compute fog
-    // float depth = current.a;
-    // float fogFactor = exp(-depth );
-    // result.rgb = mix(vec3(0.0, 0.0, 0.0), result.rgb, fogFactor);
+//     //compute fog
+//     // float depth = current.a;
+//     // float fogFactor = exp(-depth );
+//     // result.rgb = mix(vec3(0.0, 0.0, 0.0), result.rgb, fogFactor);
 
-    imageStore(uColorOutput, pixel, result);
+//     imageStore(uColorOutput, pixel, result);
 }
