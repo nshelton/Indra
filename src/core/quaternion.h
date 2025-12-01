@@ -1,7 +1,7 @@
 #pragma once
 
 #include "./vec3.h"
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 
 struct quaternion
 {

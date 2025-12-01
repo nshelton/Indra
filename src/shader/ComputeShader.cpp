@@ -33,7 +33,7 @@ bool ComputeShader::loadFromFile(const std::string &computePath)
         // If file can't be loaded and we have fallback, use it
         if (!m_fallbackComputeSource.empty())
         {
-            LOG(WARNING) << "Compute shader file not found, using fallback embedded shader";
+            LOG(ERROR) << m_filename << " not found, using fallback embedded shader";
             return loadFromSource(m_fallbackComputeSource.c_str());
         }
         return false;
@@ -97,6 +97,9 @@ bool ComputeShader::loadFromSource(const char *computeSource)
 
 bool ComputeShader::reload()
 {
+    // Back up uniforms before they are cleared by the reload.
+    ShaderUniforms oldUniforms = m_uniforms;
+
     if (m_computePath.empty())
     {
         m_lastError = "Cannot reload: no file path set";
@@ -131,6 +134,9 @@ bool ComputeShader::reload()
     {
         glDeleteProgram(oldProgram);
     }
+
+    // Restore the values of any uniforms that existed before the reload.
+    restoreUniforms(oldUniforms);
 
     LOG(INFO) << "Compute shader reload successful!";
 

@@ -2,7 +2,7 @@
 
 #include "vec3.h"
 #include "quaternion.h"
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 
 struct matrix4
 {

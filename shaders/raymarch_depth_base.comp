@@ -16,43 +16,19 @@ layout(r32f, binding = 1) writeonly uniform image2D uDepthOutput;
 
 #define TOP_LEVEL 7
 
-// Camera
-uniform vec3 uCameraPos;
-uniform vec3 uCameraForward;
-uniform vec3 uCameraRight;
-uniform vec3 uCameraUp;
-uniform float uTanHalfFov;
-uniform float uAspect;
-
 // Raymarching parameters
-uniform int uMaxSteps (1, 800, 100);
+uniform float uMaxSteps (1, 800, 100);
 uniform float uMaxDistance (1, 100, 10);
 uniform float uSurfaceEpsilon (0.1, 5, 1.0);
 uniform float uStepRatio (0.1, 1, 1.0);
 
 uniform vec3 uSeed3;
-uniform int uLevel;
+uniform float uLevel;
 
+#include "include/camera.glsl"
 #include "include/palette.glsl"
 #include "include/distance.glsl"
 
-
-// ============================================================================
-// Ray Generation
-// ============================================================================
-
-vec3 computeRayDirection(ivec2 pixel, ivec2 resolution) {
-    vec2 uv = (vec2(pixel) + vec2(0.5)) / vec2(resolution);
-    // uv += 0.5 * (uSeed4.xy - 0.5f) / vec2(resolution);
-    float ndcX = uv.x * 2.0 - 1.0;
-    float ndcY = 1.0 - uv.y * 2.0;
-
-    return normalize(
-        uCameraForward +
-        ndcX * uTanHalfFov * uAspect * uCameraRight +
-        -ndcY * uTanHalfFov * uCameraUp
-    );
-}
 
 // ============================================================================
 // Base Level Depth Raymarcher (from scratch)
@@ -69,41 +45,48 @@ void main()
     }
 
     // Generate ray for this pixel at the current mip resolution
-    // Each mip level covers the full viewport, just at different resolutions
     vec3 rayDir = computeRayDirection(pixel, resolution);
     vec3 rayOrigin = uCameraPos;
 
     float depth = 0.0;
+    float t = 0.0; // Start ray at camera
 
     if (uLevel < TOP_LEVEL)
     {
         // Read previous level depth (nearest neighbor upsampling)
         ivec2 parentPixel = pixel / 2;
-        float parentDepth = imageLoad(uPreviousLevel, parentPixel).r * 0.99;
-        depth = parentDepth;
+        t = imageLoad(uPreviousLevel, parentPixel).r;
+        // Step back a little to avoid missing the surface
+        t = max(0.0, t - 0.1);
     }
 
     // Raymarch from scratch
     bool hitSurface = false;
 
     for (int i = 0; i < uMaxSteps; i++) {
-        vec3 pos = rayOrigin + rayDir * depth;
+        vec3 pos = rayOrigin + rayDir * t;
         vec2 df_result = mapScene(pos);
         float dist = df_result.x;
 
-        if (dist < exp(-uSurfaceEpsilon) * (1 << uLevel) * depth) {
+        // A more standard hit condition
+        if (dist < 0.001 * t) {
             hitSurface = true;
+            depth = t;
             break;
         }
 
-        depth += dist * uStepRatio;
+        t += dist * uStepRatio;
 
-        if (depth >= uMaxDistance) {
-            depth = uMaxDistance;
+        if (t >= uMaxDistance) {
+            depth = 0.0; // Indicate a miss
             break;
         }
     }
 
     // Store depth (negative for misses if you want to distinguish them)
-    imageStore(uDepthOutput, pixel, vec4(depth, 0, 0, 0));
+    if(hitSurface) {
+        imageStore(uDepthOutput, pixel, vec4(depth, 0, 0, 0));
+    } else {
+        imageStore(uDepthOutput, pixel, vec4(0.0, 0, 0, 0)); // Or a large value for misses
+    }
 }

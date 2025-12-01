@@ -60,10 +60,11 @@ private:
     void raymarchDepthPyramid(const Camera& camera);
     void shadeFromDepth(const Camera& camera);
     void reconstruction(const Camera& camera);
-    // Compute shaders for hierarchical raymarching
-    std::unique_ptr<ComputeShader> m_baseDepthShader;    // 4x4 base level
-    std::unique_ptr<ComputeShader> m_shadingShader;      // Final shading pass
-    std::unique_ptr<ComputeShader> m_reconstructionShader;      // Reconstruction pass
+
+    std::unique_ptr<ComputeShader> m_raymarchShader;
+    std::unique_ptr<ComputeShader> m_shadingShader;
+    std::unique_ptr<ComputeShader> m_reconstructionShader;
+    std::unique_ptr<ComputeShader> m_depthRenderShader;
 
     // Depth pyramid (mipmapped R32F texture)
     GLuint m_depthPyramid{0};

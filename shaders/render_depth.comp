@@ -1,0 +1,46 @@
+#version 450 core
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+// ============================================================================
+// Buffers and Textures
+// ============================================================================
+
+// Depth input (from raymarching passes)
+layout(r32f, binding = 0) readonly uniform image2D uDepthMap;
+
+// Color output
+layout(rgba16f, binding = 1) writeonly uniform image2D uColorOutput;
+
+uniform float uMaxDistance;
+
+// ============================================================================
+// Uniforms
+// ============================================================================
+
+#include "include/camera.glsl"
+#include "include/distance.glsl"
+#include "include/palette.glsl"
+
+void main()
+{
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 resolution = imageSize(uColorOutput);
+
+    // Bounds check
+    if (pixel.x >= resolution.x || pixel.y >= resolution.y) {
+        return;
+    }
+
+    float depth = imageLoad(uDepthMap, pixel).r;
+
+    // vec3 color = turbo(float(pixel.x) / float(resolution.x));
+    vec3 rayDir = computeRayDirection(pixel, resolution);
+    vec3 pos = uCameraPos + rayDir * depth;
+    vec2 field = mapScene(pos);
+    // vec3 color = turbo(depth/uMaxDistance);
+    vec3 shade = estimateNormal(pos);
+    // color *= shade;
+    vec3 color = shade * 0.5 + 0.5;
+    imageStore(uColorOutput, pixel, vec4(color, 1));
+}

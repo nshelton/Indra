@@ -105,6 +105,9 @@ bool GraphicsShader::loadFromSource(const char *vertexSource, const char *fragme
 
 bool GraphicsShader::reload()
 {
+    // Back up uniforms before they are cleared by the reload.
+    ShaderUniforms oldUniforms = m_uniforms;
+
     if (m_vertexPath.empty() || m_fragmentPath.empty())
     {
         m_lastError = "Cannot reload: no file paths set";
@@ -139,6 +142,9 @@ bool GraphicsShader::reload()
     {
         glDeleteProgram(oldProgram);
     }
+
+    // Restore the values of any uniforms that existed before the reload.
+    restoreUniforms(oldUniforms);
 
     LOG(INFO) << "Shader reload successful!";
     return true;

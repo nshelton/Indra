@@ -8,6 +8,7 @@ class ComputeShader : public Shader
 {
 public:
     ComputeShader();
+    ComputeShader(std::string computePath);
     ~ComputeShader() override;
 
     /// @brief Load compute shader from file

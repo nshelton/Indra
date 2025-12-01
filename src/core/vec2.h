@@ -1,6 +1,6 @@
 #pragma once
 
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 
 struct vec2 {
     float x;

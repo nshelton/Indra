@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 
 // Color stores floats but in the range [0,1] for RGBA components
 struct color

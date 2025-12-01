@@ -24,6 +24,10 @@ std::string Shader::readFile(const std::string &path)
     // Get absolute path for better error messages
     std::filesystem::path absPath = std::filesystem::absolute(path);
 
+    // get filename 
+    m_filename = absPath.filename().string();
+
+    // Open the file
     std::ifstream file(path);
     if (!file.is_open())
     {
@@ -196,7 +200,7 @@ bool Shader::compileShader(GLuint shader, const char *source, const std::string 
     {
         char infoLog[512];
         glGetShaderInfoLog(shader, 512, nullptr, infoLog);
-        m_lastError = shaderName + " compilation failed:\n" + infoLog;
+        m_lastError = m_filename + ": " + shaderName + "compilation failed:\n" + infoLog;
         LOG(ERROR) << m_lastError;
 
         // extract line num from message error line is of the form ({col}){linenum}
@@ -231,7 +235,7 @@ bool Shader::compileShader(GLuint shader, const char *source, const std::string 
         return false;
     }
 
-    LOG(INFO) << shaderName << " compiled successfully";
+    LOG(INFO) <<  m_filename << ": " << shaderName << " compiled successfully";
     return true;
 }
 
@@ -406,4 +410,26 @@ void Shader::fromJson(const nlohmann::json &j)
                 } });
         }
     }
+}
+
+void Shader::restoreUniforms(const ShaderUniforms &backup)
+{
+    m_uniforms.forEach([&](auto &newUniform)
+    {
+        // Use a nested forEach on the backup to find a match.
+        // This is a bit inefficient but handles different types correctly.
+        backup.forEach([&](const auto &oldUniform)
+        {
+            // Use `if constexpr` to ensure this is resolved at compile-time.
+            // This prevents the compiler from trying to generate code to assign
+            // incompatible types (e.g., float to vec2).
+            if constexpr (std::is_same_v<decltype(newUniform.value), decltype(oldUniform.value)>)
+            {
+                if (newUniform.name == oldUniform.name) {
+                    newUniform.value = oldUniform.value;
+                    newUniform.needsUpload = true;
+                }
+            }
+        });
+    });
 }

@@ -228,14 +228,13 @@ public:
     // bool setUniform(const std::string &name, const matrix4 &value);
     // bool setUniform(const std::string &name, const vec2i &value);
 
-
     // Set uniform value in store (call setUniform to upload)
     template <typename T>
     bool set(const std::string &name, const T &value)
     {
         if (auto *u = m_uniforms.tryGet<T>(name))
         {
-            u->value = value;
+            u->set(value);
             return true;
         }
         return false;
@@ -250,6 +249,10 @@ public:
 
     nlohmann::json toJson() const;
     void fromJson(const nlohmann::json &j);
+
+    /// @brief Restores uniform values from a backup after a reload
+    /// @param backup The backed-up uniform store.
+    void restoreUniforms(const ShaderUniforms& backup);
 
 protected:
     /// @brief Compile a shader from source code
@@ -289,6 +292,7 @@ protected:
     GLuint m_program;
     bool m_isValid;
     std::string m_lastError;
+    std::string m_filename;
 
     ShaderUniforms m_uniforms;
 };

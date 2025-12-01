@@ -1,6 +1,6 @@
 #pragma once
 #include <cmath>
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 
 struct vec3
 {

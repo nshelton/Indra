@@ -3,7 +3,7 @@
 #include "vec3.h"
 #include "quaternion.h"
 #include "matrix4.h"
-#include <nlohmann/json_fwd.hpp>
+#include <nlohmann/json.hpp>
 
 struct transform
 {

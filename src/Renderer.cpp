@@ -88,7 +88,7 @@ void Renderer::render(const Camera &camera, const InteractionState &uiState)
    // Render lines (for debug/UI elements)
    m_lines->draw(camera);
 
-      // Raymarch to texture (doesn't draw to framebuffer directly)
+   // Raymarch to texture (doesn't draw to framebuffer directly)
    m_raymarcher->draw(camera);
    // Blit raymarcher output to HDR framebuffer
    TextureBlit::blit(m_raymarcher->getOutputTexture());
