@@ -38,9 +38,10 @@ void main()
     vec3 rayDir = computeRayDirection(pixel, resolution);
     vec3 pos = uCameraPos + rayDir * depth;
     vec2 field = mapScene(pos);
+    vec3 normal = estimateNormal(pos);
+    vec3 color = normal * 0.5 + 0.5;
+
+
     // vec3 color = turbo(depth/uMaxDistance);
-    vec3 shade = estimateNormal(pos);
-    // color *= shade;
-    vec3 color = shade * 0.5 + 0.5;
     imageStore(uColorOutput, pixel, vec4(color, 1));
 }

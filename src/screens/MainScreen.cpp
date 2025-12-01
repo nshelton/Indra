@@ -89,8 +89,8 @@ void MainScreen::onDetach()
     m_renderer.shutdown();
 }
 
-void MainScreen::(int button, int action, int mods, vec2 px)
-{onMouseButton
+void MainScreen::onMouseButton(int button, int action, int mods, vec2 px)
+{
     if (m_cameraController) {
         m_cameraController->onMouseButton(button, action, mods);
     }

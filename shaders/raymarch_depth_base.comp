@@ -19,7 +19,6 @@ layout(r32f, binding = 1) writeonly uniform image2D uDepthOutput;
 // Raymarching parameters
 uniform float uMaxSteps (1, 800, 100);
 uniform float uMaxDistance (1, 100, 10);
-uniform float uSurfaceEpsilon (0.1, 5, 1.0);
 uniform float uStepRatio (0.1, 1, 1.0);
 
 uniform vec3 uSeed3;
@@ -51,14 +50,14 @@ void main()
     float depth = 0.0;
     float t = 0.0; // Start ray at camera
 
-    if (uLevel < TOP_LEVEL)
-    {
-        // Read previous level depth (nearest neighbor upsampling)
-        ivec2 parentPixel = pixel / 2;
-        t = imageLoad(uPreviousLevel, parentPixel).r;
-        // Step back a little to avoid missing the surface
-        t = max(0.0, t - 0.1);
-    }
+    // if (uLevel < TOP_LEVEL)
+    // {
+    //     // Read previous level depth (nearest neighbor upsampling)
+    //     ivec2 parentPixel = pixel / 2;
+    //     t = imageLoad(uPreviousLevel, parentPixel).r;
+    //     // Step back a little to avoid missing the surface
+    //     t = max(0.0, t - 0.1);
+    // }
 
     // Raymarch from scratch
     bool hitSurface = false;
@@ -68,8 +67,8 @@ void main()
         vec2 df_result = mapScene(pos);
         float dist = df_result.x;
 
-        // A more standard hit condition
-        if (dist < 0.001 * t) {
+   
+        if (dist < t / pow(10, uSurfaceEpsilon)) {
             hitSurface = true;
             depth = t;
             break;

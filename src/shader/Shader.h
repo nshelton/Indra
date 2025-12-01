@@ -24,6 +24,10 @@ struct Uniform
 
     void upload()
     {
+        // Skip upload if location is invalid (shader not compiled or uniform not found)
+        if (location < 0)
+            return;
+
         if constexpr (std::same_as<T, float>)
             glUniform1f(location, value);
         else if constexpr (std::same_as<T, int>)
@@ -295,4 +299,5 @@ protected:
     std::string m_filename;
 
     ShaderUniforms m_uniforms;
+    ShaderUniforms m_lastValidUniforms; // Preserves values from last successful compilation
 };

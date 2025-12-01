@@ -374,11 +374,11 @@ nlohmann::json Shader::toJson() const
     nlohmann::json j;
     j["uniforms"] = nlohmann::json::object();
 
-    // Serialize each uniform
-    m_uniforms.forEach([&](const auto &u)
+    // Serialize from last valid uniforms to preserve values even if shader is broken
+    // Note: We only serialize the value, not the location (which is GPU-specific)
+    m_lastValidUniforms.forEach([&](const auto &u)
                       {
         nlohmann::json uniformJson;
-        uniformJson["location"] = u.location;
         uniformJson["value"] = u.value;
         j["uniforms"][u.name] = uniformJson; });
 
@@ -394,20 +394,28 @@ void Shader::fromJson(const nlohmann::json &j)
             const std::string &name = it.key();
             const nlohmann::json &uniformJson = it.value();
 
-            // Try to find the uniform in the store
-            m_uniforms.forEach([&](auto &u)
+            if (!uniformJson.contains("value"))
+                continue;
+
+            // Load into last valid uniforms (our persistent backup)
+            m_lastValidUniforms.forEach([&](auto &u)
                               {
                 if (u.name == name)
                 {
-                    if (uniformJson.contains("location"))
-                    {
-                        u.location = uniformJson["location"].get<GLint>();
-                    }
-                    if (uniformJson.contains("value"))
+                    u.value = uniformJson["value"].get<decltype(u.value)>();
+                } });
+
+            // Also apply to current uniforms if shader is valid
+            if (m_isValid)
+            {
+                m_uniforms.forEach([&](auto &u)
+                                  {
+                    if (u.name == name)
                     {
                         u.value = uniformJson["value"].get<decltype(u.value)>();
-                    }
-                } });
+                        u.needsUpload = true;
+                    } });
+            }
         }
     }
 }

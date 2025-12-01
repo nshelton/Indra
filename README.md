@@ -31,3 +31,21 @@ Okay I'm lazy - procedural animation
 - some kind of seed + procedural movement
 - find good seeds and save them
 - fragile though
+
+----
+
+## Next steps
+1. improve controls
+2. hierarchy working agian
+3. path tracing
+
+Check out serializaiton.deserializaiton
+
+clean up postproc - use same shader layout
+
+in Raymarchersimple - clean up the way shaders are handled
+- audit uniforms
+- generic gui setup
+- generic init/reload/destroy
+
+uniforms should work right on a failed compilation

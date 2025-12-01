@@ -92,6 +92,9 @@ bool ComputeShader::loadFromSource(const char *computeSource)
         u.location = getUniformLocation(u.name.c_str());
         LOG(INFO) << "Set uniform '" << u.name << "' location: " << u.location; });
 
+    // Save as last valid state after successful compilation
+    m_lastValidUniforms = m_uniforms;
+
     return true;
 }
 
@@ -125,6 +128,10 @@ bool ComputeShader::reload()
             m_program = oldProgram;
             m_isValid = oldValid;
         }
+
+        // CRITICAL: Restore uniforms even on failure to prevent value loss
+        restoreUniforms(oldUniforms);
+
         LOG(ERROR) << "Compute shader reload failed, keeping previous version";
         return false;
     }
@@ -135,8 +142,14 @@ bool ComputeShader::reload()
         glDeleteProgram(oldProgram);
     }
 
-    // Restore the values of any uniforms that existed before the reload.
+    // Restore uniform values in priority order:
+    // 1. First restore from last valid uniforms (deserialized values or previous session)
+    restoreUniforms(m_lastValidUniforms);
+    // 2. Then restore from current session (overrides with latest runtime changes)
     restoreUniforms(oldUniforms);
+
+    // Save current uniforms as last valid state (for serialization)
+    m_lastValidUniforms = m_uniforms;
 
     LOG(INFO) << "Compute shader reload successful!";
 

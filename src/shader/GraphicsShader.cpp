@@ -99,6 +99,9 @@ bool GraphicsShader::loadFromSource(const char *vertexSource, const char *fragme
         LOG(INFO) << "Set uniform '" << u.name << "' location: " << u.location;
     });
 
+    // Save as last valid state after successful compilation
+    m_lastValidUniforms = m_uniforms;
+
     LOG(INFO) << "Graphics shader program created successfully (ID: " << m_program << ")";
     return true;
 }
@@ -133,6 +136,10 @@ bool GraphicsShader::reload()
             m_program = oldProgram;
             m_isValid = oldValid;
         }
+
+        // CRITICAL: Restore uniforms even on failure to prevent value loss
+        restoreUniforms(oldUniforms);
+
         LOG(ERROR) << "Shader reload failed, keeping previous version";
         return false;
     }
@@ -143,8 +150,14 @@ bool GraphicsShader::reload()
         glDeleteProgram(oldProgram);
     }
 
-    // Restore the values of any uniforms that existed before the reload.
+    // Restore uniform values in priority order:
+    // 1. First restore from last valid uniforms (deserialized values or previous session)
+    restoreUniforms(m_lastValidUniforms);
+    // 2. Then restore from current session (overrides with latest runtime changes)
     restoreUniforms(oldUniforms);
+
+    // Save current uniforms as last valid state (for serialization)
+    m_lastValidUniforms = m_uniforms;
 
     LOG(INFO) << "Shader reload successful!";
     return true;
