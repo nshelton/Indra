@@ -4,10 +4,16 @@
 #include <imgui.h>
 #include "Camera.h"
 #include "Renderer.h"
+#include "ICameraController.h"
 #include "audio/AudioCapture.h"
 #include "audio/AudioAnalyzer.h"
 #include "util/FileWatcher.h"
 #include <memory>
+
+enum class CameraControlType {
+    Trackball,
+    FirstPerson
+};
 
 class MainScreen : public IScreen
 {
@@ -24,11 +30,14 @@ public:
 
 private:
     void drawAudioGui();
+    void createCameraController(CameraControlType type);
 
     App *m_app{nullptr};
     Camera m_camera{};
     Renderer m_renderer{};
-    InteractionController m_interaction{};
+
+    CameraControlType m_cameraControlType{CameraControlType::FirstPerson};
+    std::unique_ptr<ICameraController> m_cameraController;
 
     float m_currentFPS{0.0f};
 

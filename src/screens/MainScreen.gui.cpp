@@ -10,20 +10,34 @@ void MainScreen::onGui()
     {
         ImGui::Text("Indra Fluid sim");
         ImGui::Text("FPS: %.1f", m_currentFPS);
+
+        ImGui::Separator();
+        const char* controlModes[] = { "Trackball", "First Person" };
+        int currentMode = static_cast<int>(m_cameraControlType);
+        if (ImGui::Combo("Camera Control", &currentMode, controlModes, IM_ARRAYSIZE(controlModes))) {
+            if (currentMode != static_cast<int>(m_cameraControlType)) {
+                createCameraController(static_cast<CameraControlType>(currentMode));
+            }
+        }
     }
 
     // Camera info
     m_camera.drawGui();
+
+    // Controller settings
+    if (m_cameraController) {
+        m_cameraController->drawGui();
+    }
 
     // Renderer controls
     m_renderer.drawGui();
 
     // Audio controls
     drawAudioGui();
-    m_interaction.drawGUI();
 
     ImGui::End();
 }
+
 
 void MainScreen::drawAudioGui()
 {

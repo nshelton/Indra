@@ -1,28 +1,23 @@
 #pragma once
 
 #include "core/core.h"
-#include "Camera.h"
+#include "ICameraController.h"
+
+class Camera;
 
 // Trackball camera controller similar to Three.js TrackballControls
 // Allows rotating, panning, and zooming a camera around a target point
-class TrackballController
+class TrackballController : public ICameraController
 {
 public:
     TrackballController();
 
-    // Update camera based on mouse drag for rotation
-    void rotate(Camera& camera, const vec2& delta, const vec2& screenSize);
-
-    // Pan camera and target in screen space
-    void pan(Camera& camera, const vec2& delta, const vec2& screenSize);
-
-    // Zoom camera (move closer/further from target)
-    void zoom(Camera& camera, float delta);
-
-    // Keyboard movement (flythrough style)
-    // deltaTime is in seconds, direction flags indicate which way to move
-    void moveKeyboard(Camera& camera, float deltaTime,
-                      bool forward, bool back, bool left, bool right, bool down, bool up);
+    void onCursorPos(double xpos, double ypos) override;
+    void onMouseButton(int button, int action, int mods) override;
+    void onMouseWheel(double xoffset, double yoffset) override;
+    void update(float dt) override;
+    void drawGui() override;
+    void setCamera(Camera* camera) override { m_camera = camera; }
 
     // Settings
     void setRotateSpeed(float speed) { m_rotateSpeed = speed; }
@@ -36,11 +31,19 @@ public:
     float* panSpeed() { return &m_panSpeed; }
     float* zoomSpeed() { return &m_zoomSpeed; }
     float* keyboardSpeed() { return &m_keyboardSpeed; }
-    
 
 private:
     // Project a 2D screen point onto a 3D sphere for trackball rotation
     vec3 projectToSphere(const vec2& point, const vec2& screenSize) const;
+    void rotate(const vec2& delta, const vec2& screenSize);
+    void pan(const vec2& delta, const vec2& screenSize);
+    void zoom(float delta);
+    void moveKeyboard(float dt);
+
+    Camera* m_camera{nullptr};
+    vec2 m_lastMousePos{};
+    bool m_rotating{false};
+    bool m_panning{false};
 
     float m_rotateSpeed{1.0f};
     float m_panSpeed{1.0f};

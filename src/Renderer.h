@@ -6,22 +6,18 @@
 #include "render/Framebuffer.h"
 #include "render/PostProcessor.h"
 #include "render/TextureBlit.h"
-#include "Interaction.h"
-#include "Camera.h"
-
-#include <memory>
+struct InteractionState;
 
 class Renderer
 {
 public:
     Renderer();
 
-    /// @brief Initialize OpenGL resources - must be called after OpenGL context is ready
     void init();
 
     void setSize(int width, int height);
 
-    void render(const Camera &camera, const InteractionState &uiState);
+    void render(const Camera &camera);
     void shutdown();
     void drawGui();
 

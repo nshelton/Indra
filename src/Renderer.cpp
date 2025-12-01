@@ -46,7 +46,7 @@ void Renderer::setSize(int width, int height)
    }
 }
 
-void Renderer::render(const Camera &camera, const InteractionState &uiState)
+void Renderer::render(const Camera &camera)
 {
    if (!m_initialized)
    {
